@@ -2,6 +2,9 @@
 #include "semaphore_guard.h"
 #include "util.h"
 #include <BleMouse.h>
+#include "led_manager.h"
+#include <BLEDevice.h>
+#include <BLEServer.h>
 
 MouseTask::MouseTask(const uint8_t task_core) : Task<MouseTask>("Mouse", 5000, 1, task_core)
 {
@@ -32,11 +35,33 @@ QueueHandle_t MouseTask::getKnobStateQueue()
 void MouseTask::run()
 {
     log("Mouse task started");
+
+    LEDManager::getInstance()->setMode(LED_MODE_BT_PAIRING);
+
     bleMouse.begin();
+
+    bool was_connected = false;
 
     // Main task loop
     while (1)
     {
+        bool is_connected = bleMouse.isConnected();
+
+        // Handle connection state changes
+        if (is_connected && !was_connected)
+        {
+            LEDManager::getInstance()->setMode(LED_MODE_NORMAL);
+            log("BLE Mouse connected");
+        }
+        else if (!is_connected && was_connected)
+        {
+            LEDManager::getInstance()->setMode(LED_MODE_ERROR);
+            log("BLE Mouse disconnected");
+            break;
+        }
+
+        was_connected = is_connected;
+
         // Check for knob state updates from the queue
         if (xQueueReceive(knob_state_queue_, &state_, portMAX_DELAY) == pdTRUE)
         {
@@ -44,7 +69,7 @@ void MouseTask::run()
 
             if (substantial_change)
             {
-                if (bleMouse.isConnected())
+                if (is_connected)
                 {
                     bleMouse.move(0, 0, state_.current_position - previous_state_.current_position);
                 }

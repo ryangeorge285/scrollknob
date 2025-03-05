@@ -13,10 +13,7 @@
 #include "interface_task.h"
 #include "semaphore_guard.h"
 #include "util.h"
-
-#if SK_LEDS
-CRGB leds[NUM_LEDS];
-#endif
+#include "led_manager.h"
 
 #if SK_STRAIN
 HX711 scale;
@@ -47,8 +44,8 @@ static PB_SmartKnobConfig configs[] = {
         0,
         0,
         -1, // max position < min position indicates no bounds
-        12 * PI / 180,
-        .5,
+        10 * PI / 180,
+        .4,
         1,
         1.1,
         "Unbounded\nWeak detents",
@@ -267,9 +264,7 @@ void InterfaceTask::run()
 {
     stream_.begin();
 
-#if SK_LEDS
-    FastLED.addLeds<SK6812, PIN_LED_DATA, GRB>(leds, NUM_LEDS);
-#endif
+    LEDManager::getInstance()->init();
 
 #if SK_ALS && PIN_SDA >= 0 && PIN_SCL >= 0
     Wire.begin(PIN_SDA, PIN_SCL);
@@ -485,15 +480,15 @@ void InterfaceTask::updateHardware()
     else
     {
         log("HX711 not found.");
+    }
+#endif
 
 #if SK_LEDS
-        for (uint8_t i = 0; i < NUM_LEDS; i++)
-        {
-            leds[i] = CRGB::Red;
-        }
-        FastLED.show();
-#endif
-    }
+    LEDManager::getInstance()->updateState(
+        press_value_unit,
+        pressed);
+
+    LEDManager::getInstance()->updateLEDs();
 #endif
 
     uint16_t brightness = UINT16_MAX;
@@ -506,18 +501,18 @@ void InterfaceTask::updateHardware()
     display_task_->setBrightness(brightness); // TODO: apply gamma correction
 #endif
 
-#if SK_LEDS
-    for (uint8_t i = 0; i < NUM_LEDS; i++)
-    {
-        leds[i].setHSV(latest_config_.led_hue, 255 - 180 * CLAMP(press_value_unit, (float)0, (float)1) - 75 * pressed, brightness >> 8);
+    // #if SK_LEDS
+    //     for (uint8_t i = 0; i < NUM_LEDS; i++)
+    //     {
+    //         leds[i].setHSV(latest_config_.led_hue, 255 - 180 * CLAMP(press_value_unit, (float)0, (float)1) - 75 * pressed, brightness >> 8);
 
-        // Gamma adjustment
-        leds[i].r = dim8_video(leds[i].r);
-        leds[i].g = dim8_video(leds[i].g);
-        leds[i].b = dim8_video(leds[i].b);
-    }
-    FastLED.show();
-#endif
+    //         // Gamma adjustment
+    //         leds[i].r = dim8_video(leds[i].r);
+    //         leds[i].g = dim8_video(leds[i].g);
+    //         leds[i].b = dim8_video(leds[i].b);
+    //     }
+    //     FastLED.show();
+    // #endif
 }
 
 void InterfaceTask::setConfiguration(Configuration *configuration)
