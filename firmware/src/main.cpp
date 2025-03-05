@@ -4,28 +4,34 @@
 #include "display_task.h"
 #include "interface_task.h"
 #include "motor_task.h"
+#include "mouse_task.h"
 
 Configuration config;
 
 #if SK_DISPLAY
 static DisplayTask display_task(0);
-static DisplayTask* display_task_p = &display_task;
+static DisplayTask *display_task_p = &display_task;
 #else
-static DisplayTask* display_task_p = nullptr;
+static DisplayTask *display_task_p = nullptr;
 #endif
 static MotorTask motor_task(1, config);
-
+static MouseTask mouse_task(0);
 
 InterfaceTask interface_task(0, motor_task, display_task_p);
 
-void setup() {
-  #if SK_DISPLAY
+void setup()
+{
+#if SK_DISPLAY
   display_task.setLogger(&interface_task);
   display_task.begin();
 
   // Connect display to motor_task's knob state feed
   motor_task.addListener(display_task.getKnobStateQueue());
-  #endif
+#endif
+
+  mouse_task.setLogger(&interface_task);
+  mouse_task.begin();
+  motor_task.addListener(mouse_task.getKnobStateQueue());
 
   interface_task.begin();
 
@@ -41,7 +47,8 @@ void setup() {
   vTaskDelete(NULL);
 }
 
-void loop() {
+void loop()
+{
   // char buf[50];
   // static uint32_t last_stack_debug;
   // if (millis() - last_stack_debug > 1000) {
