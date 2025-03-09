@@ -5,6 +5,7 @@
 #include "interface_task.h"
 #include "motor_task.h"
 #include "mouse_task.h"
+#include "compass_sensor.h"
 
 Configuration config;
 
@@ -17,6 +18,7 @@ static DisplayTask *display_task_p = nullptr;
 static MotorTask motor_task(1, config);
 static MouseTask mouse_task(0);
 
+CompassSensor compass_sensor;
 InterfaceTask interface_task(0, motor_task, display_task_p);
 
 void setup()
@@ -29,8 +31,12 @@ void setup()
   motor_task.addListener(display_task.getKnobStateQueue());
 #endif
 
+  compass_sensor.setLogger(&interface_task);
+  compass_sensor.init();
+
   mouse_task.setLogger(&interface_task);
   mouse_task.begin();
+  mouse_task.setCompassSensor(&compass_sensor);
   motor_task.addListener(mouse_task.getKnobStateQueue());
 
   interface_task.begin();

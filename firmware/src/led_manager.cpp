@@ -94,7 +94,7 @@ void LEDManager::init()
     FastLED.addLeds<SK6812, PIN_LED_DATA, GRB>(leds, NUM_LEDS);
 }
 
-void LEDManager::adjustGamma() // https://www.reddit.com/r/FastLED/comments/b2mlvf/gamma_correction/eity0u1?utm_source=share&utm_medium=web2x
+void LEDManager::adjustGamma()
 {
     for (uint16_t i = 0; i < NUM_LEDS; i++)
     {

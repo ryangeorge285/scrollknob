@@ -78,11 +78,17 @@ void MouseTask::run()
                 log(buf);
 
                 previous_state_ = state_;
+
+                if (compass_sensor_ != nullptr)
+                {
+                    char buf[100];
+                    snprintf(buf, sizeof(buf), "Received compass reading: %f", compass_sensor_->getCurrentHeading());
+                    log(buf);
+                    // Use the heading value
+                }
             }
         }
-
-        // Small delay to prevent task from consuming too much CPU
-        delay(5);
+        // vTaskDelay(pdMS_TO_TICKS(5)); // 5ms delay
     }
 }
 

@@ -369,7 +369,7 @@ void InterfaceTask::run()
             }
         }
 
-        delay(1);
+        //vTaskDelay(pdMS_TO_TICKS(5)); // 5ms delay
     }
 }
 
