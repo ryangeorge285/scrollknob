@@ -44,8 +44,8 @@ static PB_SmartKnobConfig configs[] = {
         0,
         0,
         -1, // max position < min position indicates no bounds
-        10 * PI / 180,
-        .4,
+        8 * PI / 180,
+        1,
         1,
         1.1,
         "Unbounded\nWeak detents",
@@ -369,7 +369,7 @@ void InterfaceTask::run()
             }
         }
 
-        //vTaskDelay(pdMS_TO_TICKS(5)); // 5ms delay
+        // vTaskDelay(pdMS_TO_TICKS(5)); // 5ms delay
     }
 }
 

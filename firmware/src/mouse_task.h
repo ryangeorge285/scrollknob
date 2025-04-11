@@ -32,4 +32,8 @@ private:
     SemaphoreHandle_t mutex_;
     Logger *logger_;
     void log(const char *msg);
+
+    uint32_t execution_counter_;
+    uint32_t last_frequency_check_;
+    float current_frequency_;
 };

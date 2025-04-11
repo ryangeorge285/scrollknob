@@ -18,6 +18,10 @@ MouseTask::MouseTask(const uint8_t task_core) : Task<MouseTask>("Mouse", 5000, 1
 
     // Initialize logger to null
     logger_ = nullptr;
+
+    execution_counter_ = 0;
+    last_frequency_check_ = xTaskGetTickCount();
+    current_frequency_ = 0.0f;
 }
 
 MouseTask::~MouseTask()
@@ -45,6 +49,22 @@ void MouseTask::run()
     // Main task loop
     while (1)
     {
+        execution_counter_++;
+
+        // Calculate frequency every second
+        uint32_t current_time = xTaskGetTickCount();
+        if (current_time - last_frequency_check_ >= pdMS_TO_TICKS(1000))
+        {
+            current_frequency_ = execution_counter_ * 1000.0f / (current_time - last_frequency_check_);
+
+            char freq_buf[100];
+            snprintf(freq_buf, sizeof(freq_buf), "Frequency: %.2f Hz", current_frequency_);
+            log(freq_buf);
+
+            execution_counter_ = 0;
+            last_frequency_check_ = current_time;
+        }
+
         bool is_connected = bleMouse.isConnected();
 
         // Handle connection state changes
@@ -71,7 +91,7 @@ void MouseTask::run()
             {
                 if (is_connected)
                 {
-                    bleMouse.move(0, 0, state_.current_position - previous_state_.current_position);
+                    // bleMouse.move(0, 0, state_.current_position - previous_state_.current_position);
                 }
                 char buf[100];
                 snprintf(buf, sizeof(buf), "Received knob state: position=%d", state_.current_position);
