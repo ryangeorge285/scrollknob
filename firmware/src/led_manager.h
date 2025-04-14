@@ -1,3 +1,5 @@
+#pragma once
+
 #include <FastLED.h>
 #include <mutex>
 
@@ -9,21 +11,18 @@
 class LEDManager
 {
 private:
-    static LEDManager *instance_;
     std::mutex mutex_;
 
     uint8_t current_mode_;
     uint8_t current_hue_;
     uint8_t brightness;
 
-    LEDManager();
-
     CRGB leds[NUM_LEDS];
 
     void adjustGamma();
 
 public:
-    static LEDManager *getInstance();
+    LEDManager();
 
     void init();
 

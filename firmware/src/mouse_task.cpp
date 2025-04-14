@@ -2,7 +2,6 @@
 #include "semaphore_guard.h"
 #include "util.h"
 #include <BleMouse.h>
-#include "led_manager.h"
 #include <BLEDevice.h>
 #include <BLEServer.h>
 
@@ -40,7 +39,7 @@ void MouseTask::run()
 {
     log("Mouse task started");
 
-    LEDManager::getInstance()->setMode(LED_MODE_BT_PAIRING);
+    led_manager_->setMode(LED_MODE_BT_PAIRING);
 
     bleMouse.begin();
 
@@ -70,12 +69,12 @@ void MouseTask::run()
         // Handle connection state changes
         if (is_connected && !was_connected)
         {
-            LEDManager::getInstance()->setMode(LED_MODE_NORMAL);
+            led_manager_->setMode(LED_MODE_NORMAL);
             log("BLE Mouse connected");
         }
         else if (!is_connected && was_connected)
         {
-            LEDManager::getInstance()->setMode(LED_MODE_ERROR);
+            led_manager_->setMode(LED_MODE_ERROR);
             log("BLE Mouse disconnected");
             break;
         }

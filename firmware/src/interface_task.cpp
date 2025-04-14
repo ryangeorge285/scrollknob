@@ -13,7 +13,6 @@
 #include "interface_task.h"
 #include "semaphore_guard.h"
 #include "util.h"
-#include "led_manager.h"
 
 #if SK_STRAIN
 HX711 scale;
@@ -260,11 +259,9 @@ InterfaceTask::~InterfaceTask()
     vSemaphoreDelete(mutex_);
 }
 
-void InterfaceTask::run()
+void InterfaceTask::initSensors()
 {
     stream_.begin();
-
-    LEDManager::getInstance()->init();
 
 #if SK_ALS && PIN_SDA >= 0 && PIN_SCL >= 0
     Wire.begin(PIN_SDA, PIN_SCL);
@@ -285,10 +282,10 @@ void InterfaceTask::run()
         log("ALS sensor not found!");
     }
 #endif
+}
 
-    applyConfig(configs[0], false);
-    motor_task_.addListener(knob_state_queue_);
-
+void InterfaceTask::initProtocols()
+{
     plaintext_protocol_.init([this]()
                              { changeConfig(true); }, [this]()
                              {
@@ -339,6 +336,16 @@ void InterfaceTask::run()
 
     plaintext_protocol_.setProtocolChangeCallback(protocol_change_callback);
     proto_protocol_.setProtocolChangeCallback(protocol_change_callback);
+}
+
+void InterfaceTask::run()
+{
+    initSensors();
+
+    applyConfig(configs[0], false);
+    motor_task_.addListener(knob_state_queue_);
+
+    initProtocols();
 
     // Interface loop:
     while (1)
@@ -357,6 +364,8 @@ void InterfaceTask::run()
             delete log_string;
         }
 
+        readALS();
+        readPressure();
         updateHardware();
 
         if (!configuration_loaded_)
@@ -368,8 +377,6 @@ void InterfaceTask::run()
                 configuration_loaded_ = true;
             }
         }
-
-        // vTaskDelay(pdMS_TO_TICKS(5)); // 5ms delay
     }
 }
 
@@ -405,11 +412,10 @@ void InterfaceTask::changeConfig(bool next)
     applyConfig(configs[current_config_], false);
 }
 
-void InterfaceTask::updateHardware()
+// TO IMPLEMENT: EVERYTHING
+uint16_t InterfaceTask::readALS()
 {
-    // How far button is pressed, in range [0, 1]
-    float press_value_unit = 0;
-
+    uint16_t brightness = UINT16_MAX;
 #if SK_ALS
     const float LUX_ALPHA = 0.005;
     static float lux_avg;
@@ -422,7 +428,15 @@ void InterfaceTask::updateHardware()
         log(buf_);
         last_als = millis();
     }
+    brightness = (uint16_t)CLAMP(lux_avg * 13000, (float)1280, (float)UINT16_MAX);
 #endif
+    return brightness
+}
+
+// TO IMPLEMENT: Needs to return whether a left click or right click has been made
+void InterfaceTask::readPressure()
+{
+    float press_value_unit = 0;
 
     static bool pressed;
 #if SK_STRAIN
@@ -482,37 +496,17 @@ void InterfaceTask::updateHardware()
         log("HX711 not found.");
     }
 #endif
+}
 
+void InterfaceTask::updateLEDs()
+{
 #if SK_LEDS
-    LEDManager::getInstance()->updateState(
-        press_value_unit,
-        pressed);
-
-    LEDManager::getInstance()->updateLEDs();
+    if (led_manager_ != nullptr)
+    {
+        led_manager_->updateState(press_value_unit, pressed);
+        led_manager_->updateLEDs();
+    }
 #endif
-
-    uint16_t brightness = UINT16_MAX;
-// TODO: brightness scale factor should be configurable (depends on reflectivity of surface)
-#if SK_ALS
-    brightness = (uint16_t)CLAMP(lux_avg * 13000, (float)1280, (float)UINT16_MAX);
-#endif
-
-#if SK_DISPLAY
-    display_task_->setBrightness(brightness); // TODO: apply gamma correction
-#endif
-
-    // #if SK_LEDS
-    //     for (uint8_t i = 0; i < NUM_LEDS; i++)
-    //     {
-    //         leds[i].setHSV(latest_config_.led_hue, 255 - 180 * CLAMP(press_value_unit, (float)0, (float)1) - 75 * pressed, brightness >> 8);
-
-    //         // Gamma adjustment
-    //         leds[i].r = dim8_video(leds[i].r);
-    //         leds[i].g = dim8_video(leds[i].g);
-    //         leds[i].b = dim8_video(leds[i].b);
-    //     }
-    //     FastLED.show();
-    // #endif
 }
 
 void InterfaceTask::setConfiguration(Configuration *configuration)

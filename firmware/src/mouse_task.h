@@ -4,6 +4,7 @@
 #include "freertos/queue.h"
 #include <BleMouse.h>
 #include "compass_sensor.h"
+#include "led_manager.h"
 
 class MouseTask : public Task<MouseTask>
 {
@@ -18,6 +19,8 @@ public:
 
     void setCompassSensor(CompassSensor *compassSensor) { compass_sensor_ = compassSensor; }
 
+    void setLEDManager(LEDManager *led_manager) { led_manager_ = led_manager; }
+
 protected:
     void run();
 
@@ -26,6 +29,8 @@ private:
 
     QueueHandle_t knob_state_queue_;
     CompassSensor *compass_sensor_;
+
+    LEDManager *led_manager_ = nullptr;
 
     PB_SmartKnobState state_;
     PB_SmartKnobState previous_state_;

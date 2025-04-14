@@ -1,21 +1,10 @@
 #include "led_manager.h"
 #include "util.h"
 
-LEDManager *LEDManager::instance_ = nullptr;
-
 LEDManager::LEDManager()
 {
     setMode(LED_MODE_NORMAL);
     brightness = 255;
-}
-
-LEDManager *LEDManager::getInstance()
-{
-    if (instance_ == nullptr)
-    {
-        instance_ = new LEDManager();
-    }
-    return instance_;
 }
 
 void LEDManager::setMode(uint8_t mode)

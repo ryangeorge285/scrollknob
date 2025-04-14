@@ -6,6 +6,7 @@
 #include "motor_task.h"
 #include "mouse_task.h"
 #include "compass_sensor.h"
+#include "led_manager.h"
 
 Configuration config;
 
@@ -19,6 +20,7 @@ static MotorTask motor_task(1, config);
 static MouseTask mouse_task(0);
 
 CompassSensor compass_sensor;
+LEDManager led_manager;
 InterfaceTask interface_task(0, motor_task, display_task_p);
 
 void setup()
@@ -34,10 +36,13 @@ void setup()
   compass_sensor.setLogger(&interface_task);
   compass_sensor.init();
 
+  led_manager.init();
+
   mouse_task.setLogger(&interface_task);
   mouse_task.begin();
   mouse_task.setCompassSensor(&compass_sensor);
   motor_task.addListener(mouse_task.getKnobStateQueue());
+  mouse_task.setLEDManager(&led_manager);
 
   interface_task.begin();
 
@@ -45,6 +50,7 @@ void setup()
   config.loadFromDisk();
 
   interface_task.setConfiguration(&config);
+  interface_task.setLEDManager(&led_manager);
 
   motor_task.setLogger(&interface_task);
   motor_task.begin();
