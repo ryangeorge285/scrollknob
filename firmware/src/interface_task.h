@@ -68,11 +68,14 @@ private:
     SerialProtocolProtobuf proto_protocol_;
 
     void changeConfig(bool next);
-    void updateHardware();
+
     uint16_t readALS();
     void readPressure();
+    void updateLEDs();
+
     void initSensors();
     void initProtocols();
+
     void publishState();
     void applyConfig(PB_SmartKnobConfig &config, bool from_remote);
 };

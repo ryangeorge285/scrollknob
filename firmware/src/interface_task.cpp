@@ -366,7 +366,7 @@ void InterfaceTask::run()
 
         readALS();
         readPressure();
-        updateHardware();
+        updateLEDs();
 
         if (!configuration_loaded_)
         {
@@ -430,7 +430,7 @@ uint16_t InterfaceTask::readALS()
     }
     brightness = (uint16_t)CLAMP(lux_avg * 13000, (float)1280, (float)UINT16_MAX);
 #endif
-    return brightness
+    return brightness;
 }
 
 // TO IMPLEMENT: Needs to return whether a left click or right click has been made
@@ -501,11 +501,6 @@ void InterfaceTask::readPressure()
 void InterfaceTask::updateLEDs()
 {
 #if SK_LEDS
-    if (led_manager_ != nullptr)
-    {
-        led_manager_->updateState(press_value_unit, pressed);
-        led_manager_->updateLEDs();
-    }
 #endif
 }
 
