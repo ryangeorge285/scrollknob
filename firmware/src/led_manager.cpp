@@ -1,15 +1,9 @@
 #include "led_manager.h"
 #include "util.h"
 
-LEDManager::LEDManager()
-{
-    setMode(LED_MODE_NORMAL);
-    brightness = 255;
-}
-
 void LEDManager::setMode(uint8_t mode)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    xSemaphoreTake(lock_, portMAX_DELAY);
     this->current_mode_ = mode;
     if (mode == LED_MODE_NORMAL)
     {
@@ -40,11 +34,12 @@ void LEDManager::setMode(uint8_t mode)
         leds[i].g = dim8_video(leds[i].g);
         leds[i].b = dim8_video(leds[i].b);
     }
+    xSemaphoreGive(lock_);
 }
 
 void LEDManager::updateState(float press_value_unit, bool pressed)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    xSemaphoreTake(lock_, portMAX_DELAY);
 
     if (current_mode_ == LED_MODE_NORMAL)
     {
@@ -63,24 +58,28 @@ void LEDManager::updateState(float press_value_unit, bool pressed)
 
         adjustGamma();
     }
+    xSemaphoreGive(lock_);
 }
 
 void LEDManager::setBrightness(uint8_t brightness)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    xSemaphoreTake(lock_, portMAX_DELAY);
     this->brightness = brightness;
+    xSemaphoreGive(lock_);
 }
 
 void LEDManager::updateLEDs()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    xSemaphoreTake(lock_, portMAX_DELAY);
     FastLED.show();
+    xSemaphoreGive(lock_);
 }
 
 void LEDManager::init()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    FastLED.addLeds<SK6812, PIN_LED_DATA, GRB>(leds, NUM_LEDS);
+    xSemaphoreTake(lock_, portMAX_DELAY);
+    FastLED.addLeds<WS2812B, PIN_LED_DATA, GRB>(leds, NUM_LEDS);
+    xSemaphoreGive(lock_);
 }
 
 void LEDManager::adjustGamma()

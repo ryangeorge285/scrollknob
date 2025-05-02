@@ -5,6 +5,7 @@
 #include <BleMouse.h>
 #include "compass_sensor.h"
 #include "led_manager.h"
+#include "pmw3389_sensor.h"
 
 class MouseTask : public Task<MouseTask>
 {
@@ -26,6 +27,7 @@ protected:
 
 private:
     BleMouse bleMouse = BleMouse("ScrollWheel", "ESP32S3", 100);
+    PMW3389 mouseSensor;
 
     QueueHandle_t knob_state_queue_;
     CompassSensor *compass_sensor_;
@@ -37,8 +39,4 @@ private:
     SemaphoreHandle_t mutex_;
     Logger *logger_;
     void log(const char *msg);
-
-    uint32_t execution_counter_;
-    uint32_t last_frequency_check_;
-    float current_frequency_;
 };

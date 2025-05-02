@@ -4,6 +4,7 @@
 #include <BleMouse.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
+#include "pmw3389_sensor.h"
 
 MouseTask::MouseTask(const uint8_t task_core) : Task<MouseTask>("Mouse", 5000, 1, task_core)
 {
@@ -17,10 +18,6 @@ MouseTask::MouseTask(const uint8_t task_core) : Task<MouseTask>("Mouse", 5000, 1
 
     // Initialize logger to null
     logger_ = nullptr;
-
-    execution_counter_ = 0;
-    last_frequency_check_ = xTaskGetTickCount();
-    current_frequency_ = 0.0f;
 }
 
 MouseTask::~MouseTask()
@@ -41,28 +38,21 @@ void MouseTask::run()
 
     led_manager_->setMode(LED_MODE_BT_PAIRING);
 
+    mouseSensor.setLogger(logger_);
+    mouseSensor.init();
+    mouseSensor.enableBurst();
+
     bleMouse.begin();
 
     bool was_connected = false;
 
+    int16_t dx = 0, dy = 0;
+    byte burst[12];
+    bool motion = false;
+
     // Main task loop
     while (1)
     {
-        execution_counter_++;
-
-        // Calculate frequency every second
-        uint32_t current_time = xTaskGetTickCount();
-        if (current_time - last_frequency_check_ >= pdMS_TO_TICKS(1000))
-        {
-            current_frequency_ = execution_counter_ * 1000.0f / (current_time - last_frequency_check_);
-
-            char freq_buf[100];
-            snprintf(freq_buf, sizeof(freq_buf), "Frequency: %.2f Hz", current_frequency_);
-            log(freq_buf);
-
-            execution_counter_ = 0;
-            last_frequency_check_ = current_time;
-        }
 
         bool is_connected = bleMouse.isConnected();
 
@@ -96,18 +86,30 @@ void MouseTask::run()
                 snprintf(buf, sizeof(buf), "Received knob state: position=%d", state_.current_position);
                 log(buf);
 
-                previous_state_ = state_;
+                // if (compass_sensor_ != nullptr)
+                // {
+                //     char buf[100];
+                //     snprintf(buf, sizeof(buf), "Received compass reading: %f", compass_sensor_->getCurrentHeading());
+                //     log(buf);
+                //     // Use the heading value
+                // }
 
-                if (compass_sensor_ != nullptr)
-                {
-                    char buf[100];
-                    snprintf(buf, sizeof(buf), "Received compass reading: %f", compass_sensor_->getCurrentHeading());
-                    log(buf);
-                    // Use the heading value
-                }
+                previous_state_ = state_;
             }
+
+            mouseSensor.readMouseMovement(motion, dx, dy);
+
+            if (motion)
+            {
+                bleMouse.move(constrain(dx, -127, 127),
+                              constrain(dy, -127, 127),
+                              0);
+                dx = dy = 0;
+            }
+            //log("Sending knob state to BLE mouse");
         }
-        // vTaskDelay(pdMS_TO_TICKS(5)); // 5ms delay
+        // Delay to avoid busy-waiting
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
 

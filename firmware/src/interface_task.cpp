@@ -44,7 +44,7 @@ static PB_SmartKnobConfig configs[] = {
         0,
         -1, // max position < min position indicates no bounds
         8 * PI / 180,
-        1,
+        2,
         1,
         1.1,
         "Unbounded\nWeak detents",
@@ -377,16 +377,19 @@ void InterfaceTask::run()
                 configuration_loaded_ = true;
             }
         }
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
 }
 
 void InterfaceTask::log(const char *msg)
 {
+#if DEBUG_LOG
     // Allocate a string for the duration it's in the queue; it is free'd by the queue consumer
     std::string *msg_str = new std::string(msg);
 
     // Put string in queue (or drop if full to avoid blocking)
     xQueueSendToBack(log_queue_, &msg_str, 0);
+#endif
 }
 
 void InterfaceTask::changeConfig(bool next)

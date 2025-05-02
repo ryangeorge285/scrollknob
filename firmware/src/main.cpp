@@ -33,18 +33,21 @@ void setup()
   motor_task.addListener(display_task.getKnobStateQueue());
 #endif
 
+  interface_task.begin();
+
   compass_sensor.setLogger(&interface_task);
   compass_sensor.init();
 
   led_manager.init();
+  led_manager.setBrightness(10);
+  led_manager.setMode(LED_MODE_NORMAL);
+  led_manager.updateLEDs();
 
   mouse_task.setLogger(&interface_task);
-  mouse_task.begin();
-  mouse_task.setCompassSensor(&compass_sensor);
-  motor_task.addListener(mouse_task.getKnobStateQueue());
   mouse_task.setLEDManager(&led_manager);
-
-  interface_task.begin();
+  mouse_task.setCompassSensor(&compass_sensor);
+  mouse_task.begin();
+  motor_task.addListener(mouse_task.getKnobStateQueue());
 
   config.setLogger(&interface_task);
   config.loadFromDisk();

@@ -1,5 +1,3 @@
-#include <SimpleFOC.h>
-
 #include "motor_task.h"
 #if SENSOR_MT6701
 #include "mt6701_sensor.h"
@@ -7,6 +5,8 @@
 #include "tlv_sensor.h"
 #elif SENSOR_MAQ430
 #include "maq430_sensor.h"
+#elif SENSOR_AS5048A
+#include "as5048_sensor.h"
 #endif
 
 #include "motors/motor_config.h"
@@ -34,7 +34,7 @@ TlvSensor encoder = TlvSensor();
 #elif SENSOR_MT6701
 MT6701Sensor encoder = MT6701Sensor();
 #elif SENSOR_AS5048A
-MagneticSensorSPI encoder = MagneticSensorSPI(AS5048_SPI, 20);
+MagneticSensorSPI encoder = MagneticSensorSPI(AS5048_SPI, PIN_AS5048_CS);
 #elif SENSOR_MAQ430
 MagneticSensorSPI encoder = MagneticSensorSPI(MAQ430_SPI, PIN_MAQ_SS);
 #endif
@@ -50,7 +50,9 @@ void MotorTask::run()
 #elif SENSOR_MT6701
     encoder.init();
 #elif SENSOR_AS5048A
-    encoder.init();
+    SPIClass *spi = new SPIClass(HSPI);
+    spi->begin(PIN_AS5048_SCK, PIN_AS5048_MISO, PIN_AS5048_MOSI, PIN_AS5048_CS);
+    encoder.init(spi);
 #elif SENSOR_MAQ430
     SPIClass *spi = new SPIClass(HSPI);
     spi->begin(PIN_MAQ_SCK, PIN_MAQ_MISO, PIN_MAQ_MOSI, PIN_MAQ_SS);

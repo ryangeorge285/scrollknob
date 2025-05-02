@@ -11,7 +11,7 @@
 class LEDManager
 {
 private:
-    std::mutex mutex_;
+    SemaphoreHandle_t lock_;
 
     uint8_t current_mode_;
     uint8_t current_hue_;
@@ -22,7 +22,16 @@ private:
     void adjustGamma();
 
 public:
-    LEDManager();
+    LEDManager() : brightness(255)
+    {
+        // create the mutex
+        lock_ = xSemaphoreCreateMutex();
+        setMode(LED_MODE_NORMAL);
+    }
+    ~LEDManager()
+    {
+        vSemaphoreDelete(lock_);
+    }
 
     void init();
 
