@@ -48,7 +48,10 @@ void MouseTask::run()
 
     int16_t dx = 0, dy = 0;
     byte burst[12];
-    bool motion = false;
+    bool mouseMotion = false;
+
+    unsigned long last_update = millis();
+    bool knobMotion = false;
 
     // Main task loop
     while (1)
@@ -80,11 +83,8 @@ void MouseTask::run()
             {
                 if (is_connected)
                 {
-                    // bleMouse.move(0, 0, state_.current_position - previous_state_.current_position);
+                    bleMouse.move(0, 0, state_.current_position - previous_state_.current_position);
                 }
-                char buf[100];
-                snprintf(buf, sizeof(buf), "Received knob state: position=%d", state_.current_position);
-                log(buf);
 
                 // if (compass_sensor_ != nullptr)
                 // {
@@ -95,20 +95,61 @@ void MouseTask::run()
                 // }
 
                 previous_state_ = state_;
+                knobMotion = true;
             }
 
-            mouseSensor.readMouseMovement(motion, dx, dy);
+            mouseSensor.readMouseMovement(mouseMotion, dx, dy);
 
-            if (motion)
+            if (mouseMotion)
             {
                 bleMouse.move(constrain(dx, -127, 127),
                               constrain(dy, -127, 127),
                               0);
                 dx = dy = 0;
             }
-            //log("Sending knob state to BLE mouse");
+
+#if DEEP_SLEEP_ENABLED
+            if (knobMotion || mouseMotion)
+            {
+                last_update = millis();
+                knobMotion = false;
+                mouseMotion = false;
+            }
+            else if (millis() - last_update > 5000)
+            {
+                log("No activity, going to light sleep");
+
+                // Store time before light sleep for tracking duration
+                uint64_t sleep_start = esp_timer_get_time() / 1000; // Convert to ms
+
+                // Configure wake sources for light sleep (same as deep sleep)
+                esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_PMW3389_MOTION, 0);
+
+                // Enter light sleep
+                esp_light_sleep_start();
+
+                // Code continues here after waking from light sleep
+                uint64_t sleep_duration = (esp_timer_get_time() / 1000) - sleep_start;
+
+                if (sleep_duration > 600000)
+                { // 300000ms = 5 minutes
+                    log("Light sleep exceeded 5 minutes, going to deep sleep");
+
+                    mouseSensor.shutdown();
+
+                    delay(100);
+                    esp_deep_sleep_start();
+                }
+                else
+                {
+                    log("Woke from light sleep");
+                    // Update last_update to avoid immediately going back to sleep
+                    last_update = millis();
+                }
+            }
+#endif
         }
-        // Delay to avoid busy-waiting
+
         vTaskDelay(pdMS_TO_TICKS(5));
     }
 }

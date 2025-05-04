@@ -7,6 +7,9 @@
 #include "mouse_task.h"
 #include "compass_sensor.h"
 #include "led_manager.h"
+#include "driver/rtc_io.h"
+#include <esp_system.h>
+#include <esp_sleep.h>
 
 Configuration config;
 
@@ -48,6 +51,10 @@ void setup()
   mouse_task.setCompassSensor(&compass_sensor);
   mouse_task.begin();
   motor_task.addListener(mouse_task.getKnobStateQueue());
+
+  esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_PMW3389_MOTION, (esp_sleep_ext1_wakeup_mode_t)0);
+  rtc_gpio_pulldown_dis((gpio_num_t)PIN_PMW3389_MOTION);
+  rtc_gpio_pullup_en((gpio_num_t)PIN_PMW3389_MOTION);
 
   config.setLogger(&interface_task);
   config.loadFromDisk();

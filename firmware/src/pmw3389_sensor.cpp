@@ -37,6 +37,7 @@ void PMW3389::init()
     adns_upload_firmware();
     delay(10);
     setCPI(10000); // default to 800 CPI
+    adns_write_reg(Motion_Control, 0x01);
     log("Optical Chip Initialized");
     // DBG_PRINTLN("=== startup complete ===");
 }
@@ -114,6 +115,14 @@ void PMW3389::setCPI(uint16_t cpi)
 void PMW3389::enableBurst()
 {
     adns_write_reg(Motion_Burst, 0x00);
+}
+
+void PMW3389::shutdown()
+{
+    // Put the sensor into low power mode
+    adns_write_reg(0x00, 0x00);         // Configuration register, write 0 to power down
+    digitalWrite(PIN_PMW3389_NC, HIGH); // Ensure CS is high (deselected)
+    pinMode(PIN_PMW3389_MOTION, INPUT); // Set to input mode
 }
 
 void PMW3389::log(const char *msg)

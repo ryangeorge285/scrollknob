@@ -8,6 +8,7 @@
 #define Inverse_Product_ID 0x3F
 #define SROM_ID 0x2A
 #define Motion 0x02
+#define Motion_Control 0x19
 #define Delta_X_L 0x03
 #define Delta_X_H 0x04
 #define Delta_Y_L 0x05
@@ -37,6 +38,7 @@ private:
 public:
     void init();
     void enableBurst();
+    void shutdown();
 
     inline void readMouseMovement(bool &motion, int16_t &dx, int16_t &dy)
     {
