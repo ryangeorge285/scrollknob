@@ -56,8 +56,8 @@ public:
         bool offSurface = burst[0] & 0x08;
         int16_t x = (burst[3] << 8) | burst[2];
         int16_t y = (burst[5] << 8) | burst[4];
-        dx += x;
-        dy += y;
+        dx -= y;
+        dy += x;
 
         if (motion || abs(dx) > 10 || abs(dy) > 10)
         {

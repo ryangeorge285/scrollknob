@@ -5,8 +5,9 @@
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include "pmw3389_sensor.h"
+#include "ads1220_adc.h"
 
-MouseTask::MouseTask(const uint8_t task_core) : Task<MouseTask>("Mouse", 5000, 1, task_core)
+MouseTask::MouseTask(const uint8_t task_core, MotorTask &motor_task) : Task<MouseTask>("Mouse", 5000, 1, task_core), motor_task_(motor_task)
 {
     // Create queue to receive knob state updates
     knob_state_queue_ = xQueueCreate(1, sizeof(PB_SmartKnobState));
@@ -43,6 +44,13 @@ void MouseTask::run()
     mouseSensor.enableBurst();
 
     bleMouse.begin();
+
+    SPI.end();
+    SPI.begin(PIN_PMW3389_SCK, PIN_PMW3389_MISO, PIN_PMW3389_MOSI);
+
+    adsController.setLogger(logger_);
+    adsController.init();
+    adsController.calibrate();
 
     bool was_connected = false;
 
@@ -107,6 +115,39 @@ void MouseTask::run()
                               0);
                 dx = dy = 0;
             }
+            static bool pressed;
+            static uint8_t press_readings;
+            float press_value_unit = adsController.readStrainGauge(false);
+
+            char buf[100];
+            snprintf(buf, sizeof(buf), "Press value: %f", press_value_unit);
+            log(buf);
+
+            if (!pressed && press_value_unit > 1.45)
+            {
+                press_readings++;
+                if (press_readings > 2)
+                {
+                    bleMouse.press();
+                    motor_task_.playHaptic(true);
+                    pressed = true;
+                    press_count_++;
+                }
+            }
+            else if (pressed && press_value_unit < 1.3)
+            {
+                press_readings++;
+                if (press_readings > 2)
+                {
+                    bleMouse.release();
+                    motor_task_.playHaptic(false);
+                    pressed = false;
+                }
+            }
+            else
+            {
+                press_readings = 0;
+            }
 
 #if DEEP_SLEEP_ENABLED
             if (knobMotion || mouseMotion)
@@ -117,40 +158,17 @@ void MouseTask::run()
             }
             else if (millis() - last_update > 5000)
             {
-                log("No activity, going to light sleep");
+                log("No activity, going to sleep");
 
-                // Store time before light sleep for tracking duration
-                uint64_t sleep_start = esp_timer_get_time() / 1000; // Convert to ms
+                mouseSensor.shutdown();
 
-                // Configure wake sources for light sleep (same as deep sleep)
-                esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_PMW3389_MOTION, 0);
-
-                // Enter light sleep
-                esp_light_sleep_start();
-
-                // Code continues here after waking from light sleep
-                uint64_t sleep_duration = (esp_timer_get_time() / 1000) - sleep_start;
-
-                if (sleep_duration > 600000)
-                { // 300000ms = 5 minutes
-                    log("Light sleep exceeded 5 minutes, going to deep sleep");
-
-                    mouseSensor.shutdown();
-
-                    delay(100);
-                    esp_deep_sleep_start();
-                }
-                else
-                {
-                    log("Woke from light sleep");
-                    // Update last_update to avoid immediately going back to sleep
-                    last_update = millis();
-                }
+                delay(100);
+                esp_deep_sleep_start();
             }
 #endif
         }
 
-        vTaskDelay(pdMS_TO_TICKS(5));
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
 }
 

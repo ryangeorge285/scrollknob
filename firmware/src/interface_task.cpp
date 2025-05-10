@@ -364,10 +364,6 @@ void InterfaceTask::run()
             delete log_string;
         }
 
-        readALS();
-        readPressure();
-        updateLEDs();
-
         if (!configuration_loaded_)
         {
             SemaphoreGuard lock(mutex_);
@@ -413,98 +409,6 @@ void InterfaceTask::changeConfig(bool next)
     snprintf(buf_, sizeof(buf_), "Changing config to %d -- %s", current_config_, configs[current_config_].text);
     log(buf_);
     applyConfig(configs[current_config_], false);
-}
-
-// TO IMPLEMENT: EVERYTHING
-uint16_t InterfaceTask::readALS()
-{
-    uint16_t brightness = UINT16_MAX;
-#if SK_ALS
-    const float LUX_ALPHA = 0.005;
-    static float lux_avg;
-    float lux = veml.readLux();
-    lux_avg = lux * LUX_ALPHA + lux_avg * (1 - LUX_ALPHA);
-    static uint32_t last_als;
-    if (millis() - last_als > 1000 && strain_calibration_step_ == 0)
-    {
-        snprintf(buf_, sizeof(buf_), "millilux: %.2f", lux * 1000);
-        log(buf_);
-        last_als = millis();
-    }
-    brightness = (uint16_t)CLAMP(lux_avg * 13000, (float)1280, (float)UINT16_MAX);
-#endif
-    return brightness;
-}
-
-// TO IMPLEMENT: Needs to return whether a left click or right click has been made
-void InterfaceTask::readPressure()
-{
-    float press_value_unit = 0;
-
-    static bool pressed;
-#if SK_STRAIN
-    if (scale.wait_ready_timeout(100))
-    {
-        strain_reading_ = scale.read();
-
-        static uint32_t last_reading_display;
-        if (millis() - last_reading_display > 1000 && strain_calibration_step_ == 0)
-        {
-            snprintf(buf_, sizeof(buf_), "HX711 reading: %d", strain_reading_);
-            log(buf_);
-            last_reading_display = millis();
-        }
-        if (configuration_loaded_ && configuration_value_.has_strain && strain_calibration_step_ == 0)
-        {
-            // TODO: calibrate and track (long term moving average) idle point (lower)
-            press_value_unit = lerp(strain_reading_, configuration_value_.strain.idle_value, configuration_value_.strain.idle_value + configuration_value_.strain.press_delta, 0, 1);
-
-            // Ignore readings that are way out of expected bounds
-            if (-1 < press_value_unit && press_value_unit < 2)
-            {
-                static uint8_t press_readings;
-                if (!pressed && press_value_unit > 1)
-                {
-                    press_readings++;
-                    if (press_readings > 2)
-                    {
-                        motor_task_.playHaptic(true);
-                        pressed = true;
-                        press_count_++;
-                        publishState();
-                        if (!remote_controlled_)
-                        {
-                            changeConfig(true);
-                        }
-                    }
-                }
-                else if (pressed && press_value_unit < 0.5)
-                {
-                    press_readings++;
-                    if (press_readings > 2)
-                    {
-                        motor_task_.playHaptic(false);
-                        pressed = false;
-                    }
-                }
-                else
-                {
-                    press_readings = 0;
-                }
-            }
-        }
-    }
-    else
-    {
-        log("HX711 not found.");
-    }
-#endif
-}
-
-void InterfaceTask::updateLEDs()
-{
-#if SK_LEDS
-#endif
 }
 
 void InterfaceTask::setConfiguration(Configuration *configuration)

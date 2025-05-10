@@ -69,10 +69,6 @@ private:
 
     void changeConfig(bool next);
 
-    uint16_t readALS();
-    void readPressure();
-    void updateLEDs();
-
     void initSensors();
     void initProtocols();
 

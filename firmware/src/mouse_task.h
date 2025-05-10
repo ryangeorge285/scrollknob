@@ -6,13 +6,15 @@
 #include "compass_sensor.h"
 #include "led_manager.h"
 #include "pmw3389_sensor.h"
+#include "ads1220_adc.h"
+#include "motor_task.h"
 
 class MouseTask : public Task<MouseTask>
 {
     friend class Task<MouseTask>; // Allow base Task to invoke protected run()
 
 public:
-    MouseTask(const uint8_t task_core);
+    MouseTask(const uint8_t task_core, MotorTask &motor_task);
     ~MouseTask();
 
     QueueHandle_t getKnobStateQueue();
@@ -26,13 +28,18 @@ protected:
     void run();
 
 private:
+    MotorTask &motor_task_;
+
     BleMouse bleMouse = BleMouse("ScrollWheel", "ESP32S3", 100);
     PMW3389 mouseSensor;
+    ADS1220Controller adsController;
 
     QueueHandle_t knob_state_queue_;
     CompassSensor *compass_sensor_;
 
     LEDManager *led_manager_ = nullptr;
+
+    uint8_t press_count_;
 
     PB_SmartKnobState state_;
     PB_SmartKnobState previous_state_;

@@ -51,7 +51,7 @@ void MotorTask::run()
     encoder.init();
 #elif SENSOR_AS5048A
     SPIClass *spi = new SPIClass(HSPI);
-    spi->begin(PIN_AS5048_SCK, PIN_AS5048_MISO, PIN_AS5048_MOSI, PIN_AS5048_CS);
+    spi->begin(PIN_AS5048_SCK, PIN_AS5048_MISO, PIN_AS5048_MOSI);
     encoder.init(spi);
 #elif SENSOR_MAQ430
     SPIClass *spi = new SPIClass(HSPI);

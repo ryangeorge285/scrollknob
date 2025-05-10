@@ -20,7 +20,7 @@ static DisplayTask *display_task_p = &display_task;
 static DisplayTask *display_task_p = nullptr;
 #endif
 static MotorTask motor_task(1, config);
-static MouseTask mouse_task(0);
+static MouseTask mouse_task(0, motor_task);
 
 CompassSensor compass_sensor;
 LEDManager led_manager;
