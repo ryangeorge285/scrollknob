@@ -46,18 +46,15 @@ void setup()
   led_manager.setMode(LED_MODE_NORMAL);
   led_manager.updateLEDs();
 
+  config.setLogger(&interface_task);
+  config.loadFromDisk();
+
   mouse_task.setLogger(&interface_task);
+  mouse_task.setConfiguration(&config);
   mouse_task.setLEDManager(&led_manager);
   mouse_task.setCompassSensor(&compass_sensor);
   mouse_task.begin();
   motor_task.addListener(mouse_task.getKnobStateQueue());
-
-  esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_PMW3389_MOTION, (esp_sleep_ext1_wakeup_mode_t)0);
-  rtc_gpio_pulldown_dis((gpio_num_t)PIN_PMW3389_MOTION);
-  rtc_gpio_pullup_en((gpio_num_t)PIN_PMW3389_MOTION);
-
-  config.setLogger(&interface_task);
-  config.loadFromDisk();
 
   interface_task.setConfiguration(&config);
   interface_task.setLEDManager(&led_manager);

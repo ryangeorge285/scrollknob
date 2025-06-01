@@ -43,10 +43,10 @@ static PB_SmartKnobConfig configs[] = {
         0,
         0,
         -1, // max position < min position indicates no bounds
-        8 * PI / 180,
-        1.2,
+        10 * PI / 180,
         1,
-        .8,
+        1,
+        1,
         "Unbounded\nWeak detents",
         0,
         {},

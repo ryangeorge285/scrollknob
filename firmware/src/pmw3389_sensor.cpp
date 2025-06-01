@@ -8,7 +8,7 @@ void PMW3389::init()
     pinMode(PIN_PMW3389_NC, OUTPUT);
     // pinMode(RESET_PIN, INPUT_PULLUP);
 
-    SPI.begin(PIN_PMW3389_SCK, PIN_PMW3389_MISO, PIN_PMW3389_MOSI);
+    SPI.begin(PIN_VSPI_SCK, PIN_VSPI_MISO, PIN_VSPI_MOSI);
     SPI.setDataMode(SPI_MODE3);
     SPI.setBitOrder(MSBFIRST);
 
@@ -36,7 +36,7 @@ void PMW3389::init()
 
     adns_upload_firmware();
     delay(10);
-    setCPI(10000); // default to 800 CPI
+    setCPI(800); // default to 800 CPI
     adns_write_reg(Motion_Control, 0x01);
     log("Optical Chip Initialized");
     // DBG_PRINTLN("=== startup complete ===");
@@ -102,13 +102,13 @@ void PMW3389::adns_upload_firmware()
 
 void PMW3389::setCPI(uint16_t cpi)
 {
-    uint16_t v = cpi / 50;
-    adns_write_reg(Resolution_L, v & 0xFF);
-    adns_write_reg(Resolution_H, v >> 8);
-    Serial.print("Set CPI to ");
-    Serial.println(v * 50);
+    unsigned cpival = cpi / 50;
+
+    adns_write_reg(Resolution_L, (cpival & 0xFF));
+    adns_write_reg(Resolution_H, ((cpival >> 8) & 0xFF));
+
     char buf[100];
-    snprintf(buf, sizeof(buf), " -> %u CPI", v * 50);
+    snprintf(buf, sizeof(buf), " -> %u CPI", cpival * 50);
     log(buf);
 }
 
@@ -119,10 +119,20 @@ void PMW3389::enableBurst()
 
 void PMW3389::shutdown()
 {
-    // Put the sensor into low power mode
-    adns_write_reg(0x00, 0x00);         // Configuration register, write 0 to power down
-    digitalWrite(PIN_PMW3389_NC, HIGH); // Ensure CS is high (deselected)
-    pinMode(PIN_PMW3389_MOTION, INPUT); // Set to input mode
+    // Configure motion detection to remain active during low power
+    // Set the configuration register to enable motion interrupt
+    adns_write_reg(Config2, 0x20); // Enable REST mode with motion detection
+
+    // Put sensor in low power mode while keeping motion detection active
+    adns_write_reg(Shutdown, 0xB0); // Low power mode with motion detection
+
+    // Ensure CS is high (deselected)
+    digitalWrite(PIN_PMW3389_NC, HIGH);
+
+    // Make sure the motion pin is in input mode to detect interrupts
+    pinMode(PIN_PMW3389_MOTION, INPUT_PULLUP);
+
+    log("PMW3389 entered low power mode with motion detection enabled");
 }
 
 void PMW3389::log(const char *msg)

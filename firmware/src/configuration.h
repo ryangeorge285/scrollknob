@@ -4,61 +4,72 @@
 #include <PacketSerial.h>
 
 #include "proto_gen/smartknob.pb.h"
+#include "ads1220_adc.h"
 
 #include "logger.h"
 
-const uint32_t PERSISTENT_CONFIGURATION_VERSION = 1;
+const uint32_t PERSISTENT_CONFIGURATION_VERSION = 2;
 
-class Configuration {
-    public:
-        Configuration();
-        ~Configuration();
+class Configuration
+{
+public:
+    Configuration();
+    ~Configuration();
 
-        void setLogger(Logger* logger);
-        bool loadFromDisk();
-        bool saveToDisk();
-        PB_PersistentConfiguration get();
-        bool setMotorCalibrationAndSave(PB_MotorCalibration& motor_calibration);
-        bool setStrainCalibrationAndSave(PB_StrainCalibration& strain_calibration);
+    void setLogger(Logger *logger);
+    bool loadFromDisk();
+    bool saveToDisk();
+    PB_PersistentConfiguration get();
+    bool setMotorCalibrationAndSave(PB_MotorCalibration &motor_calibration);
+    bool setStrainCalibrationAndSave(PB_StrainCalibration &strain_calibration);
+    bool setStrainRawOffsetAndSave(PB_StrainRawOffset &strain_offset_values); // New method declaration
 
-    private:
-        SemaphoreHandle_t mutex_;
+private:
+    SemaphoreHandle_t mutex_;
 
-        Logger* logger_ = nullptr;
-        bool loaded_ = false;
-        PB_PersistentConfiguration pb_buffer_ = {};
+    Logger *logger_ = nullptr;
+    bool loaded_ = false;
+    PB_PersistentConfiguration pb_buffer_ = {};
 
-        uint8_t buffer_[PB_PersistentConfiguration_size];
+    uint8_t buffer_[PB_PersistentConfiguration_size];
 
-        void log(const char* msg);
+    void log(const char *msg);
 };
-class FatGuard {
-    public:
-        FatGuard(Logger* logger) : logger_(logger) {
-            if (!FFat.begin(true)) {
-                if (logger_ != nullptr) {
-                    logger_->log("Failed to mount FFat");
-                }
-                return;
+class FatGuard
+{
+public:
+    FatGuard(Logger *logger) : logger_(logger)
+    {
+        if (!FFat.begin(true))
+        {
+            if (logger_ != nullptr)
+            {
+                logger_->log("Failed to mount FFat");
             }
-            if (logger_ != nullptr) {
-                logger_->log("Mounted FFat");
-            }
-            mounted_ = true;
+            return;
         }
-        ~FatGuard() {
-            if (mounted_) {
-                FFat.end();
-                if (logger_ != nullptr) {
-                    logger_->log("Unmounted FFat");
-                }
+        if (logger_ != nullptr)
+        {
+            logger_->log("Mounted FFat");
+        }
+        mounted_ = true;
+    }
+    ~FatGuard()
+    {
+        if (mounted_)
+        {
+            FFat.end();
+            if (logger_ != nullptr)
+            {
+                logger_->log("Unmounted FFat");
             }
         }
-        FatGuard(FatGuard const&)=delete;
-        FatGuard& operator=(FatGuard const&)=delete;
+    }
+    FatGuard(FatGuard const &) = delete;
+    FatGuard &operator=(FatGuard const &) = delete;
 
-        bool mounted_ = false;
+    bool mounted_ = false;
 
-    private:
-        Logger* logger_;
+private:
+    Logger *logger_;
 };

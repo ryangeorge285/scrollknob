@@ -8,6 +8,7 @@
 #include "pmw3389_sensor.h"
 #include "ads1220_adc.h"
 #include "motor_task.h"
+#include "configuration.h"
 
 class MouseTask : public Task<MouseTask>
 {
@@ -24,11 +25,17 @@ public:
 
     void setLEDManager(LEDManager *led_manager) { led_manager_ = led_manager; }
 
+    void setConfiguration(Configuration *config)
+    {
+        configuration_ = config;
+    }
+
 protected:
     void run();
 
 private:
     MotorTask &motor_task_;
+    Configuration *configuration_;
 
     BleMouse bleMouse = BleMouse("ScrollWheel", "ESP32S3", 100);
     PMW3389 mouseSensor;

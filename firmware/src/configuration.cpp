@@ -8,35 +8,41 @@
 
 #include "configuration.h"
 
-static const char* CONFIG_PATH = "/config.pb";
+static const char *CONFIG_PATH = "/config.pb";
 
-Configuration::Configuration() {
-  mutex_ = xSemaphoreCreateMutex();
-  assert(mutex_ != NULL);
+Configuration::Configuration()
+{
+    mutex_ = xSemaphoreCreateMutex();
+    assert(mutex_ != NULL);
 }
 
-Configuration::~Configuration() {
-  vSemaphoreDelete(mutex_);
+Configuration::~Configuration()
+{
+    vSemaphoreDelete(mutex_);
 }
 
-bool Configuration::loadFromDisk() {
+bool Configuration::loadFromDisk()
+{
     SemaphoreGuard lock(mutex_);
     FatGuard fatGuard(logger_);
-    if (!fatGuard.mounted_) {
+    if (!fatGuard.mounted_)
+    {
         return false;
     }
 
     File f = FFat.open(CONFIG_PATH);
-    if (!f) {
+    if (!f)
+    {
         log("Failed to read config file");
         return false;
     }
 
-    size_t read = f.readBytes((char*)buffer_, sizeof(buffer_));
+    size_t read = f.readBytes((char *)buffer_, sizeof(buffer_));
     f.close();
 
     pb_istream_t stream = pb_istream_from_buffer(buffer_, read);
-    if (!pb_decode(&stream, PB_PersistentConfiguration_fields, &pb_buffer_)) {
+    if (!pb_decode(&stream, PB_PersistentConfiguration_fields, &pb_buffer_))
+    {
         char buf[200];
         snprintf(buf, sizeof(buf), "Decoding failed: %s", PB_GET_ERROR(&stream));
         log(buf);
@@ -44,7 +50,8 @@ bool Configuration::loadFromDisk() {
         return false;
     }
 
-    if (pb_buffer_.version != PERSISTENT_CONFIGURATION_VERSION) {
+    if (pb_buffer_.version != PERSISTENT_CONFIGURATION_VERSION)
+    {
         char buf[200];
         snprintf(buf, sizeof(buf), "Invalid config version. Expected %u, received %u", PERSISTENT_CONFIGURATION_VERSION, pb_buffer_.version);
         log(buf);
@@ -61,18 +68,32 @@ bool Configuration::loadFromDisk() {
         pb_buffer_.motor.calibrated,
         pb_buffer_.motor.pole_pairs,
         pb_buffer_.motor.zero_electrical_offset,
-        pb_buffer_.motor.direction_cw
-    );
+        pb_buffer_.motor.direction_cw);
     log(buf);
+
+    if (pb_buffer_.has_strain_offset)
+    { // Check if strain_offset data exists
+        snprintf(
+            buf,
+            sizeof(buf),
+            "Strain offset: A=%.6f, B=%.6f, C=%.6f, D=%.6f",
+            pb_buffer_.strain_offset.A,
+            pb_buffer_.strain_offset.B,
+            pb_buffer_.strain_offset.C,
+            pb_buffer_.strain_offset.D);
+        log(buf);
+    }
     return true;
 }
 
-bool Configuration::saveToDisk() {
+bool Configuration::saveToDisk()
+{
     SemaphoreGuard lock(mutex_);
 
     pb_ostream_t stream = pb_ostream_from_buffer(buffer_, sizeof(buffer_));
     pb_buffer_.version = PERSISTENT_CONFIGURATION_VERSION;
-    if (!pb_encode(&stream, PB_PersistentConfiguration_fields, &pb_buffer_)) {
+    if (!pb_encode(&stream, PB_PersistentConfiguration_fields, &pb_buffer_))
+    {
         char buf[200];
         snprintf(buf, sizeof(buf), "Encoding failed: %s", PB_GET_ERROR(&stream));
         log(buf);
@@ -80,11 +101,13 @@ bool Configuration::saveToDisk() {
     }
 
     FatGuard fatGuard(logger_);
-    if (!fatGuard.mounted_) {
+    if (!fatGuard.mounted_)
+    {
         return false;
     }
     File f = FFat.open(CONFIG_PATH, FILE_WRITE);
-    if (!f) {
+    if (!f)
+    {
         log("Failed to read config file");
         return false;
     }
@@ -95,7 +118,8 @@ bool Configuration::saveToDisk() {
     snprintf(buf, sizeof(buf), "Wrote %d bytes", written);
     log(buf);
 
-    if (written != stream.bytes_written) {
+    if (written != stream.bytes_written)
+    {
         log("Failed to write all bytes to file");
         return false;
     }
@@ -103,15 +127,18 @@ bool Configuration::saveToDisk() {
     return true;
 }
 
-PB_PersistentConfiguration Configuration::get() {
+PB_PersistentConfiguration Configuration::get()
+{
     SemaphoreGuard lock(mutex_);
-    if (!loaded_) {
+    if (!loaded_)
+    {
         return PB_PersistentConfiguration();
     }
     return pb_buffer_;
 }
 
-bool Configuration::setMotorCalibrationAndSave(PB_MotorCalibration& motor_calibration) {
+bool Configuration::setMotorCalibrationAndSave(PB_MotorCalibration &motor_calibration)
+{
     {
         SemaphoreGuard lock(mutex_);
         pb_buffer_.motor = motor_calibration;
@@ -120,7 +147,8 @@ bool Configuration::setMotorCalibrationAndSave(PB_MotorCalibration& motor_calibr
     return saveToDisk();
 }
 
-bool Configuration::setStrainCalibrationAndSave(PB_StrainCalibration& strain_calibration) {
+bool Configuration::setStrainCalibrationAndSave(PB_StrainCalibration &strain_calibration)
+{
     {
         SemaphoreGuard lock(mutex_);
         pb_buffer_.strain = strain_calibration;
@@ -129,12 +157,25 @@ bool Configuration::setStrainCalibrationAndSave(PB_StrainCalibration& strain_cal
     return saveToDisk();
 }
 
-void Configuration::setLogger(Logger* logger) {
+bool Configuration::setStrainRawOffsetAndSave(PB_StrainRawOffset &strain_offset_values)
+{
+    {
+        SemaphoreGuard lock(mutex_);
+        pb_buffer_.strain_offset = strain_offset_values;
+        pb_buffer_.has_strain_offset = true; // Ensure this field is set
+    }
+    return saveToDisk();
+}
+
+void Configuration::setLogger(Logger *logger)
+{
     logger_ = logger;
 }
 
-void Configuration::log(const char* msg) {
-    if (logger_ != nullptr) {
+void Configuration::log(const char *msg)
+{
+    if (logger_ != nullptr)
+    {
         logger_->log(msg);
     }
 }

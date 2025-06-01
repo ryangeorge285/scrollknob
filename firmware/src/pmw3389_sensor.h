@@ -15,8 +15,8 @@
 #define Delta_Y_H 0x06
 #define SQUAL 0x07
 #define Config2 0x10
-#define Resolution_L 0x0F
-#define Resolution_H 0x10
+#define Resolution_L 0x0E
+#define Resolution_H 0x0F
 #define SROM_Enable 0x13
 #define Power_Up_Reset 0x3A
 #define Shutdown 0x3B
@@ -59,13 +59,13 @@ public:
         dx -= y;
         dy += x;
 
-        if (motion || abs(dx) > 10 || abs(dy) > 10)
-        {
-            char buf[100];
-            snprintf(buf, sizeof(buf), "Burst: motion=%d offSurface=%s dx=%d dy=%d SQUAL=%u",
-                     motion, offSurface ? "true" : "false", dx, dy, burst[6]);
-            log(buf);
-        }
+        // if (motion || abs(dx) > 10 || abs(dy) > 10)
+        // {
+        //     char buf[100];
+        //     snprintf(buf, sizeof(buf), "Burst: motion=%d offSurface=%s dx=%d dy=%d SQUAL=%u",
+        //              motion, offSurface ? "true" : "false", dx, dy, burst[6]);
+        //     log(buf);
+        // }
     }
 
     void setLogger(Logger *logger);

@@ -36,4 +36,7 @@ PB_BIND(PB_MotorCalibration, PB_MotorCalibration, AUTO)
 PB_BIND(PB_StrainCalibration, PB_StrainCalibration, AUTO)
 
 
+PB_BIND(PB_StrainRawOffset, PB_StrainRawOffset, AUTO)
+
+
 
