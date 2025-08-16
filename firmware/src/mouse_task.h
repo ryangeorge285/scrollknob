@@ -30,6 +30,8 @@ public:
         configuration_ = config;
     }
 
+    void setADSController(ADS1220Controller *controller) { adsController = controller; };
+
 protected:
     void run();
 
@@ -39,7 +41,7 @@ private:
 
     BleMouse bleMouse = BleMouse("ScrollWheel", "ESP32S3", 100);
     PMW3389 mouseSensor;
-    ADS1220Controller adsController;
+    ADS1220Controller *adsController;
 
     QueueHandle_t knob_state_queue_;
     CompassSensor *compass_sensor_;

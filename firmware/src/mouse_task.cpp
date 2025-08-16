@@ -98,10 +98,8 @@ void MouseTask::run()
     SPI.end();
     SPI.begin(PIN_VSPI_SCK, PIN_VSPI_MISO, PIN_VSPI_MOSI);
 
-    adsController.setLogger(logger_);
-    adsController.setConfiguration(configuration_);
-    adsController.init();
-
+    adsController->init();
+    
     esp_reset_reason_t reason = esp_reset_reason();
     log(resetReasonToStr(reason));
     bool was_connected = false;
@@ -174,7 +172,7 @@ void MouseTask::run()
             static int currentClickStatus = 0;
             static uint8_t press_readings;
 
-            StrainData strain = adsController.read(false);
+            StrainData strain = adsController->read(false);
 
             // char buf[100];
             // snprintf(buf, sizeof(buf), "Press value: %f", strain.force);

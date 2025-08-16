@@ -25,6 +25,7 @@ static MouseTask mouse_task(0, motor_task);
 CompassSensor compass_sensor;
 LEDManager led_manager;
 InterfaceTask interface_task(0, motor_task, display_task_p);
+ADS1220Controller adsController;
 
 void setup()
 {
@@ -48,8 +49,13 @@ void setup()
 
   config.setLogger(&interface_task);
   config.loadFromDisk();
+  vTaskDelay(pdMS_TO_TICKS(5000));
+
+  adsController.setLogger(&interface_task);
+  adsController.setConfiguration(&config);
 
   mouse_task.setLogger(&interface_task);
+  mouse_task.setADSController(&adsController);
   mouse_task.setConfiguration(&config);
   mouse_task.setLEDManager(&led_manager);
   mouse_task.setCompassSensor(&compass_sensor);

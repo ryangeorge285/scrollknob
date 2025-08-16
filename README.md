@@ -1,3 +1,6 @@
+# Scroll Knob
+This project uses the haptic feedback code from Smart Knob, to avoid reinventing the wheel twice! It is modified and extended heavily to enable the full functionality of a mouse. Original readme is below this section. Hopefully, will update the code base to implement haptic feedback without a BLDC motor to save power for extra battery life but it's a great starting point.
+
 # SmartKnob
 SmartKnob is an open-source input device with software-configurable endstops and virtual detents.
 
