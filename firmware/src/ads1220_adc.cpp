@@ -20,12 +20,12 @@ void ADS1220Controller::init()
             ;
     }
 
-    if (!ads1.init())
-    {
-        log("ADS1220 1 not found!");
-        while (1)
-            ;
-    }
+    // if (!ads1.init())
+    // {
+    //     log("ADS1220 1 not found!");
+    //     while (1)
+    //         ;
+    // }
 
     ads0.bypassPGA(false);
     ads0.setGain(ADS1220_GAIN_128); // crank it up ×128
@@ -33,11 +33,11 @@ void ADS1220Controller::init()
     ads0.setConversionMode(ADS1220_CONTINUOUS);
     ads0.setDataRate(ADS1220_DR_LVL_3); // 45 SPS; adjust as needed
 
-    ads1.bypassPGA(false);
-    ads1.setGain(ADS1220_GAIN_128); // crank it up ×128
-    ads1.setOperatingMode(ADS1220_TURBO_MODE);
-    ads1.setConversionMode(ADS1220_CONTINUOUS);
-    ads1.setDataRate(ADS1220_DR_LVL_3); // 45 SPS; adjust as needed
+    // ads1.bypassPGA(false);
+    // ads1.setGain(ADS1220_GAIN_128); // crank it up ×128
+    // ads1.setOperatingMode(ADS1220_TURBO_MODE);
+    // ads1.setConversionMode(ADS1220_CONTINUOUS);
+    // ads1.setDataRate(ADS1220_DR_LVL_3); // 45 SPS; adjust as needed
 
     if (configuration_ != nullptr)
     {
@@ -142,16 +142,19 @@ StrainRaw ADS1220Controller::readStrainGauge(bool print)
         StrainA = mV2;
     }
 
-    ads1.setCompareChannels(ADS1220_MUX_0_1);
-    mV1 = ads1.getRawData() * (2.048f / 8388608.0f / 128.0f * 1000.0f);
-    ads1.setCompareChannels(ADS1220_MUX_2_3);
-    mV2 = ads1.getRawData() * (2.048f / 8388608.0f / 128.0f * 1000.0f);
+    // ads1.setCompareChannels(ADS1220_MUX_0_1);
+    // mV1 = ads1.getRawData() * (2.048f / 8388608.0f / 128.0f * 1000.0f);
+    // ads1.setCompareChannels(ADS1220_MUX_2_3);
+    // mV2 = ads1.getRawData() * (2.048f / 8388608.0f / 128.0f * 1000.0f);
 
-    if (!(mV1 == 0 || mV2 == 0))
-    {
-        StrainD = mV1;
-        StrainC = mV2;
-    }
+    // if (!(mV1 == 0 || mV2 == 0))
+    // {
+    //     StrainD = mV1;
+    //     StrainC = mV2;
+    // }
+
+    StrainC = 0;
+    StrainD = 0;
 
     StrainRaw result = StrainRaw{StrainA, StrainB, StrainC, StrainD};
 
@@ -161,12 +164,12 @@ StrainRaw ADS1220Controller::readStrainGauge(bool print)
     {
         char bufAB[100];
         snprintf(bufAB, sizeof(bufAB), "STRAIN_A:%f STRAIN_B:%f", result.A, result.B);
-        char bufCD[100];
-        snprintf(bufCD, sizeof(bufCD), "STRAIN_C:%f STRAIN_D:%f", result.C, result.D);
+        // char bufCD[100];
+        // snprintf(bufCD, sizeof(bufCD), "STRAIN_C:%f STRAIN_D:%f", result.C, result.D);
 
-        char buf[100];
-        snprintf(buf, sizeof(buf), "%s %s", bufAB, bufCD);
-        log(buf);
+        // char buf[100];
+        // snprintf(buf, sizeof(buf), "%s %s", bufAB, bufCD);
+        log(bufAB);
     }
 
     return result;
@@ -177,10 +180,10 @@ StrainData ADS1220Controller::read(bool print)
     StrainRaw strain = readStrainGauge();
     StrainData data;
 
-    data.x = -(strain.B - strain.D);
-    data.y = (strain.A - strain.C);
-    // x = rotation_cos * x - rotation_sin * y;
-    // y = rotation_sin * (StrainD - StrainB) + rotation_cos * y;
+    data.x = -(strain.A - strain.B);
+    // data.y = (strain.A - strain.C);
+    //  x = rotation_cos * x - rotation_sin * y;
+    //  y = rotation_sin * (StrainD - StrainB) + rotation_cos * y;
     data.force = sqrt(pow(strain.A, 2) + pow(strain.B, 2) + pow(strain.C, 2) + pow(strain.D, 2));
 
     if (data.force < .2)
