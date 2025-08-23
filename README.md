@@ -3,12 +3,8 @@ This project uses the haptic feedback code from Smart Knob, to avoid reinventing
 
 ## Usage Demo
 
-<video width="900" controls>
-  <source src="https://github.com/ryangeorge285/scrollknob/raw/master/doc/img/usage_breadboard_hq.mp4" type="video/mp4">
-  Your browser does not support the video tag. <a href="https://github.com/ryangeorge285/scrollknob/blob/master/doc/img/usage_breadboard_hq.mp4">Click here to view the video</a>.
-</video>
-
-*Usage demonstration of the ScrollKnob device*
+[Watch the ScrollKnob usage demonstration video](https://drive.google.com/file/d/19alRo4zA4prLQ-nmhBoOkKJV8IdTQgyg/view?usp=share_link)
+*(Apologies for the low quality, Google Drive auto compresses it)*
 
 1. The main feature: the scroll wheel with haptic feedback every line scroll (audio on)
 2. Regular mouse movement in the x,y plane are kept the same
