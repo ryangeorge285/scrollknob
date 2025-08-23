@@ -1,6 +1,36 @@
 # Scroll Knob
 This project uses the haptic feedback code from Smart Knob, to avoid reinventing the wheel twice! It is modified and extended heavily to enable the full functionality of a mouse. Original readme is below this section. Hopefully, will update the code base to implement haptic feedback without a BLDC motor to save power for extra battery life but it's a great starting point.
 
+## Usage Demo
+
+<video width="900" controls>
+  <source src="https://github.com/ryangeorge285/scrollknob/raw/master/doc/img/usage_breadboard_hq.mp4" type="video/mp4">
+  Your browser does not support the video tag. <a href="https://github.com/ryangeorge285/scrollknob/blob/master/doc/img/usage_breadboard_hq.mp4">Click here to view the video</a>.
+</video>
+
+*Usage demonstration of the ScrollKnob device*
+
+1. The main feature: the scroll wheel with haptic feedback every line scroll (audio on)
+2. Regular mouse movement in the x,y plane are kept the same
+3. Strain guages measure the direction of force applied to the knob, determining a left and right click
+
+## Hardware Images
+
+### Raw Hardware  
+<a href="doc/img/rawhardware.jpg"><img src="doc/img/rawhardware.jpg" width="600" /></a>
+
+This is the raw hardware on a breadboard. There is a 3D printed mount (the blue piece) for prototyping the strain, angle sensor and optical sensor. 
+
+### Full Test Breadboard
+<a href="doc/img/full test.jpg"><img src="doc/img/full test.jpg" width="600" /></a>
+
+This is with a small knob ontop, for a slightly more finished (still breadboard) prototype.
+
+### PCB Design
+<a href="doc/img/pcb.jpg"><img src="doc/img/pcb.jpg" width="600" /></a>
+
+The PCB still being slowly assembled, hand soldering with a soldering iron and hot air gun. Both the breadboard hardware and mounted hardware will all fit in the circular PCB (board on the right)
+
 # SmartKnob
 SmartKnob is an open-source input device with software-configurable endstops and virtual detents.
 
