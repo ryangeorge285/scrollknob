@@ -99,7 +99,7 @@ void MouseTask::run()
     SPI.begin(PIN_VSPI_SCK, PIN_VSPI_MISO, PIN_VSPI_MOSI);
 
     adsController->init();
-    
+
     esp_reset_reason_t reason = esp_reset_reason();
     log(resetReasonToStr(reason));
     bool was_connected = false;

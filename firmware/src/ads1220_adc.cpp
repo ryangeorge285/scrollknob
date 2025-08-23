@@ -13,6 +13,10 @@ void ADS1220Controller::init()
     ads0.setSPIClockSpeed(4000000);
     ads1.setSPIClockSpeed(4000000);
 
+    // Ensure ADS1 CS pin is configured as output and set HIGH to disable unused ADS1
+    pinMode(PIN_ADS1220_CS1, OUTPUT);
+    digitalWrite(PIN_ADS1220_CS1, HIGH);
+
     if (!ads0.init())
     {
         log("ADS1220 0 not found!");
