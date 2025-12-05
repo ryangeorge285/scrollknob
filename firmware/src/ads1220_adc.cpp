@@ -5,8 +5,10 @@
 #include "configuration.h"          // Include configuration
 #include "proto_gen/smartknob.pb.h" // For PB_PersistentConfiguration and PB_StrainRawOffset
 
-void ADS1220Controller::init()
+bool ADS1220Controller::init()
 {
+    initialized_ = false;
+
     // SPI.begin(PIN_PMW3389_SCK, PIN_PMW3389_MISO, PIN_PMW3389_MOSI);
     SPI.setDataMode(SPI_MODE1); // ADS1220 wants Mode 1
     SPI.setBitOrder(MSBFIRST);
@@ -20,8 +22,7 @@ void ADS1220Controller::init()
     if (!ads0.init())
     {
         log("ADS1220 0 not found!");
-        while (1)
-            ;
+        return false;
     }
 
     // if (!ads1.init())
@@ -42,6 +43,8 @@ void ADS1220Controller::init()
     // ads1.setOperatingMode(ADS1220_TURBO_MODE);
     // ads1.setConversionMode(ADS1220_CONTINUOUS);
     // ads1.setDataRate(ADS1220_DR_LVL_3); // 45 SPS; adjust as needed
+
+    initialized_ = true;
 
     if (configuration_ != nullptr)
     {
@@ -78,10 +81,20 @@ void ADS1220Controller::init()
             calibrateZero();
         }
     }
+    return true;
 }
 
 void ADS1220Controller::calibrateZero()
 {
+    if (!initialized_)
+    {
+        if (logger_)
+        {
+            log("ADS: calibrateZero called before init");
+        }
+        return;
+    }
+
     SPI.setDataMode(SPI_MODE1);
 
     strainOffset_ = {0.0, 0.0, 0.0, 0.0};
@@ -129,6 +142,11 @@ void ADS1220Controller::calibrateZero()
 
 StrainRaw ADS1220Controller::readStrainGauge(bool print)
 {
+    if (!initialized_)
+    {
+        return StrainRaw{0, 0, 0, 0};
+    }
+
     SPI.setDataMode(SPI_MODE1);
 
     ads0.setCompareChannels(ADS1220_MUX_0_1);
@@ -136,10 +154,10 @@ StrainRaw ADS1220Controller::readStrainGauge(bool print)
     ads0.setCompareChannels(ADS1220_MUX_2_3);
     float mV2 = ads0.getRawData() * (2.048f / 8388608.0f / 128.0f * 1000.0f);
 
-    float StrainA;
-    float StrainB;
-    float StrainC;
-    float StrainD;
+    float StrainA = 0;
+    float StrainB = 0;
+    float StrainC = 0;
+    float StrainD = 0;
     if (!(mV1 == 0 || mV2 == 0))
     {
         StrainB = mV1;
@@ -181,10 +199,15 @@ StrainRaw ADS1220Controller::readStrainGauge(bool print)
 
 StrainData ADS1220Controller::read(bool print)
 {
-    StrainRaw strain = readStrainGauge();
-    StrainData data;
+    if (!initialized_)
+    {
+        return StrainData{};
+    }
 
-    data.x = -(strain.A - strain.B);
+    StrainRaw strain = readStrainGauge(false);
+    StrainData data{};
+
+    data.x = (strain.A - strain.B);
     // data.y = (strain.A - strain.C);
     //  x = rotation_cos * x - rotation_sin * y;
     //  y = rotation_sin * (StrainD - StrainB) + rotation_cos * y;

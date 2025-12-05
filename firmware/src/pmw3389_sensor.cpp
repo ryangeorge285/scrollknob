@@ -36,7 +36,7 @@ void PMW3389::init()
 
     adns_upload_firmware();
     delay(10);
-    setCPI(800); // default to 800 CPI
+    setCPI(1600); // default to 800 CPI
     adns_write_reg(Motion_Control, 0x01);
     log("Optical Chip Initialized");
     // DBG_PRINTLN("=== startup complete ===");

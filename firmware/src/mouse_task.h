@@ -37,22 +37,24 @@ protected:
 
 private:
     MotorTask &motor_task_;
-    Configuration *configuration_;
+    Configuration *configuration_ = nullptr;
 
     BleMouse bleMouse = BleMouse("ScrollWheel", "ESP32S3", 100);
     PMW3389 mouseSensor;
-    ADS1220Controller *adsController;
+    ADS1220Controller *adsController = nullptr;
 
     QueueHandle_t knob_state_queue_;
-    CompassSensor *compass_sensor_;
+    CompassSensor *compass_sensor_ = nullptr;
 
     LEDManager *led_manager_ = nullptr;
 
-    uint8_t press_count_;
+    uint8_t press_count_ = 0;
+    uint8_t disconnect_streak_ = 0;
+    unsigned long last_connect_ms_ = 0;
 
     PB_SmartKnobState state_;
     PB_SmartKnobState previous_state_;
     SemaphoreHandle_t mutex_;
-    Logger *logger_;
+    Logger *logger_ = nullptr;
     void log(const char *msg);
 };

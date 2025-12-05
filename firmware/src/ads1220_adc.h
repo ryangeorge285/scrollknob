@@ -44,9 +44,10 @@ struct StrainRaw
 
 struct StrainData
 {
-    float x, y;
-    float force;
-    int clickStatus;
+    float x = 0;
+    float y = 0;
+    float force = 0;
+    int clickStatus = 0;
 };
 
 class ADS1220Controller
@@ -59,15 +60,22 @@ private:
     StrainRaw strainOffset_;
     StrainRaw readStrainGauge(bool print = false);
     Configuration *configuration_ = nullptr; // New: Pointer to configuration object
+    bool initialized_ = false;
+
+    static constexpr size_t kForceWindowSize = 3;
+    float force_window_[kForceWindowSize] = {};
+    size_t force_window_pos_ = 0;
+    size_t force_window_count_ = 0;
 
     int restingFinger = 0;
+    float filterForce(float new_force);
 
 public:
     ADS1220Controller()
         : ads0(PIN_ADS1220_CS0, PIN_ADS1220_DRDY0, true),
           ads1(PIN_ADS1220_CS1, PIN_ADS1220_DRDY1, true) {}
 
-    void init();
+    bool init();
     void calibrateZero();
 
     StrainData read(bool print = false);
