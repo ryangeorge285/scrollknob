@@ -58,7 +58,11 @@ private:
     Logger *logger_ = nullptr;
 
     StrainRaw strainOffset_;
-    StrainRaw readStrainGauge(bool print = false);
+    StrainRaw last_raw_ = {0, 0, 0, 0};
+    StrainData last_data_{};
+    ADS1220_MUX current_mux_ = ADS1220_MUX_0_1;
+    bool has_valid_sample_ = false;
+    bool readStrainGauge(StrainRaw &result, bool print = false);
     Configuration *configuration_ = nullptr; // New: Pointer to configuration object
     bool initialized_ = false;
 
@@ -78,7 +82,7 @@ public:
     bool init();
     void calibrateZero();
 
-    StrainData read(bool print = false);
+    bool read(StrainData &data, bool print = false);
 
     void setLogger(Logger *logger);
     void log(const char *msg);

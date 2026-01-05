@@ -384,7 +384,11 @@ void InterfaceTask::log(const char *msg)
     std::string *msg_str = new std::string(msg);
 
     // Put string in queue (or drop if full to avoid blocking)
-    xQueueSendToBack(log_queue_, &msg_str, 0);
+    if (xQueueSendToBack(log_queue_, &msg_str, 0) != pdTRUE)
+    {
+        // Queue full: drop message and free allocation to avoid leaking
+        delete msg_str;
+    }
 #endif
 }
 

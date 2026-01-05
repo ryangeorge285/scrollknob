@@ -10,6 +10,15 @@
 #include "motor_task.h"
 #include "configuration.h"
 
+class ManagedBleMouse : public BleMouse
+{
+public:
+    using BleMouse::BleMouse;
+
+protected:
+    void onStarted(BLEServer *pServer) override;
+};
+
 class MouseTask : public Task<MouseTask>
 {
     friend class Task<MouseTask>; // Allow base Task to invoke protected run()
@@ -39,7 +48,7 @@ private:
     MotorTask &motor_task_;
     Configuration *configuration_ = nullptr;
 
-    BleMouse bleMouse = BleMouse("ScrollWheel", "ESP32S3", 100);
+    ManagedBleMouse bleMouse = ManagedBleMouse("ScrollWheel", "ESP32S3", 100);
     PMW3389 mouseSensor;
     ADS1220Controller *adsController = nullptr;
 

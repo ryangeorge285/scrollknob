@@ -2,9 +2,13 @@
 #include "semaphore_guard.h"
 #include "util.h"
 #include <algorithm>
+#include <cstdarg>
+#include <cstring>
 #include <BleMouse.h>
 #include <BLEDevice.h>
+#include <BLEAdvertising.h>
 #include <BLEServer.h>
+#include <BLESecurity.h>
 #include "pmw3389_sensor.h"
 #include "ads1220_adc.h"
 #include <esp_system.h>
@@ -121,11 +125,126 @@ static void clearAllBleBonds(Logger *logger)
     free(dev_list);
 }
 
+static esp_power_level_t maxBleTxPower()
+{
+#if defined(ESP_PWR_LVL_P9)
+    return ESP_PWR_LVL_P9; // Newer IDF names go up to +9 dBm
+#elif defined(ESP_PWR_LVL_P7)
+    return ESP_PWR_LVL_P7;
+#elif defined(ESP_PWR_LVL_P6)
+    return ESP_PWR_LVL_P6;
+#else
+    return ESP_PWR_LVL_P3; // Best available fallback
+#endif
+}
+
+static Logger *s_ble_logger = nullptr;
+
+static void logBle(const char *fmt, ...)
+{
+    if (s_ble_logger == nullptr)
+    {
+        return;
+    }
+    va_list args;
+    va_start(args, fmt);
+    char buf[128];
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    s_ble_logger->log(buf);
+}
+
+static void gattsEventHandler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param)
+{
+    (void)gatts_if;
+    switch (event)
+    {
+    case ESP_GATTS_CONNECT_EVT:
+    {
+        logBle("BLE connected (conn_id=%u)", param->connect.conn_id);
+        esp_ble_conn_update_params_t conn_params{};
+        memcpy(conn_params.bda, param->connect.remote_bda, sizeof(conn_params.bda));
+        conn_params.min_int = 0x06;  // 7.5 ms
+        conn_params.max_int = 0x0C;  // 15 ms
+        conn_params.latency = 0;
+        conn_params.timeout = 400; // 4 seconds supervision timeout
+        esp_ble_gap_update_conn_params(&conn_params);
+        break;
+    }
+    case ESP_GATTS_DISCONNECT_EVT:
+        logBle("BLE disconnected (reason=0x%02X)", param->disconnect.reason);
+        BLEDevice::startAdvertising();
+        break;
+    default:
+        break;
+    }
+}
+
+static void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
+{
+    switch (event)
+    {
+    case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
+        if (param->update_conn_params.status != ESP_BT_STATUS_SUCCESS)
+        {
+            logBle("Conn params update failed (status=%d)", param->update_conn_params.status);
+        }
+        else
+        {
+            logBle("Conn params interval %.1f-%.1f ms, latency %u, timeout %.1f s",
+                   param->update_conn_params.min_int * 1.25f,
+                   param->update_conn_params.max_int * 1.25f,
+                   param->update_conn_params.latency,
+                   param->update_conn_params.timeout * 0.01f);
+        }
+        break;
+    case ESP_GAP_BLE_AUTH_CMPL_EVT:
+        if (param->ble_security.auth_cmpl.success)
+        {
+            logBle("BLE auth complete");
+        }
+        else
+        {
+            logBle("BLE auth failed (reason=0x%02X)", param->ble_security.auth_cmpl.fail_reason);
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+void ManagedBleMouse::onStarted(BLEServer *pServer)
+{
+    // Favor a robust link over minimal power draw; losing packets will cause the host to disconnect
+    const esp_power_level_t high_power = maxBleTxPower();
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, high_power);
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, high_power);
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN, high_power);
+
+    // Use "just works" (no bonding) security to avoid pairing failures causing drops
+    BLESecurity *security = new BLESecurity();
+    security->setAuthenticationMode(ESP_LE_AUTH_NO_BOND);
+    security->setCapability(ESP_IO_CAP_NONE);
+    security->setInitEncryptionKey(ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK);
+    security->setRespEncryptionKey(ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK);
+
+    BLEAdvertising *advertising = pServer->getAdvertising();
+    advertising->setAdvertisementType(ADV_TYPE_IND);
+    advertising->setMinInterval(0x20);     // 20 ms
+    advertising->setMaxInterval(0x40);     // 40 ms
+    advertising->setMinPreferred(0x06);    // Request fast connection params (7.5 ms)
+    advertising->setMaxPreferred(0x0C);    // And cap them at 15 ms
+}
+
 void MouseTask::run()
 {
     log("Mouse task started");
 
     led_manager_->setMode(LED_MODE_BT_PAIRING);
+
+    s_ble_logger = logger_;
+    BLEDevice::setCustomGapHandler(gapEventHandler);
+    BLEDevice::setCustomGattsHandler(gattsEventHandler);
 
     // Free classic BT memory and bring up BLE before touching other peripherals
     esp_err_t bt_release = esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
@@ -212,8 +331,12 @@ void MouseTask::run()
 
         was_connected = is_connected;
 
-        // Check for knob state updates from the queue
-        if (xQueueReceive(knob_state_queue_, &state_, pdMS_TO_TICKS(50)) == pdTRUE)
+        knobMotion = false;
+        mouseMotion = false;
+        dx = dy = 0;
+
+        // Check for knob state updates without blocking the motion loop
+        if (xQueueReceive(knob_state_queue_, &state_, 0) == pdTRUE)
         {
             bool substantial_change = (previous_state_.current_position != state_.current_position) || (previous_state_.config.detent_strength_unit != state_.config.detent_strength_unit) || (previous_state_.config.endstop_strength_unit != state_.config.endstop_strength_unit) || (previous_state_.config.min_position != state_.config.min_position) || (previous_state_.config.max_position != state_.config.max_position);
 
@@ -235,114 +358,119 @@ void MouseTask::run()
                 previous_state_ = state_;
                 knobMotion = true;
             }
+        }
 
-            mouseSensor.readMouseMovement(mouseMotion, dx, dy);
-            last_mouse_spi_us = micros();
+        mouseSensor.readMouseMovement(mouseMotion, dx, dy);
+        last_mouse_spi_us = micros();
 
-            if (mouseMotion)
-            {
-                char buf[100];
-                snprintf(buf, sizeof(buf), "Mouse Movement: {%i,%i}", -dx, -dy);
-                log(buf);
-                bleMouse.move(constrain(-dx, -127, 127),
-                              constrain(-dy, -127, 127),
-                              0);
-                dx = dy = 0;
-            }
+        if (mouseMotion)
+        {
+            bleMouse.move(constrain(-dx, -127, 127),
+                          constrain(-dy, -127, 127),
+                          0);
+        }
 
 #if DEEP_SLEEP_ENABLED
-            if (knobMotion || mouseMotion)
-            {
-                last_update = millis();
-                knobMotion = false;
-                mouseMotion = false;
-            }
-            else if (millis() - last_update > 6000 * SLEEP_MIN)
-            {
-                log("No activity, going to sleep");
-
-                // mouseSensor.shutdown();
-
-                // esp_sleep_disable_uart_wakeup(0);
-                rtc_gpio_pulldown_dis((gpio_num_t)PIN_PMW3389_MOTION);
-                rtc_gpio_pullup_en((gpio_num_t)PIN_PMW3389_MOTION);
-                esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_PMW3389_MOTION, (esp_sleep_ext1_wakeup_mode_t)0);
-
-                char buf[100];
-                snprintf(buf, sizeof(buf), "Motion Pin: %i", digitalRead(PIN_PMW3389_MOTION));
-                log(buf);
-
-                delay(100);
-                esp_deep_sleep_start();
-            }
-#endif
+        if (knobMotion || mouseMotion)
+        {
+            last_update = millis();
         }
+        else if (millis() - last_update > 6000 * SLEEP_MIN)
+        {
+            log("No activity, going to sleep");
+
+            // mouseSensor.shutdown();
+
+            // esp_sleep_disable_uart_wakeup(0);
+            rtc_gpio_pulldown_dis((gpio_num_t)PIN_PMW3389_MOTION);
+            rtc_gpio_pullup_en((gpio_num_t)PIN_PMW3389_MOTION);
+            esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_PMW3389_MOTION, (esp_sleep_ext1_wakeup_mode_t)0);
+
+            char buf[100];
+            snprintf(buf, sizeof(buf), "Motion Pin: %i", digitalRead(PIN_PMW3389_MOTION));
+            log(buf);
+
+            delay(100);
+            esp_deep_sleep_start();
+        }
+#endif
 
         if (ads_ready)
         {
-            StrainData strain = adsController->read(false);
-
-            // char buf[120];
-            // snprintf(buf, sizeof(buf), "Force=%.3f X=%.3f Y=%.3f ClickStatus=%d", strain.force, strain.x, strain.y, strain.clickStatus);
-            // log(buf);
-
-            const bool in_spi_quiet_period = (micros() - last_mouse_spi_us) < spi_quiet_window_us;
-            if (in_spi_quiet_period)
+            // Keep some space between mouse SPI transactions and strain gauge reads
+            const uint32_t since_mouse_spi = micros() - last_mouse_spi_us;
+            if (since_mouse_spi < spi_quiet_window_us)
             {
-                press_readings = 0;
+                delayMicroseconds(spi_quiet_window_us - since_mouse_spi);
             }
-            else
+
+            StrainData strain{};
+            const bool new_strain_sample = adsController->read(strain, false);
+
+            if (new_strain_sample)
             {
-                if (!pressed && strain.force > 0.9f)
+                char buf[120];
+                snprintf(buf, sizeof(buf), "Force=%.3f X=%.3f Y=%.3f ClickStatus=%d", strain.force, strain.x, strain.y, strain.clickStatus);
+                // log(buf);
+
+                const bool in_spi_quiet_period = (micros() - last_mouse_spi_us) < spi_quiet_window_us;
+                if (in_spi_quiet_period)
                 {
-                    press_readings++;
-                    if (press_readings > 2)
-                    {
-                        if (strain.clickStatus == 1)
-                        {
-                            char buf[100];
-                            snprintf(buf, sizeof(buf), "Left Clicked: Force%f", strain.force);
-                            log(buf);
-                            bleMouse.press(MOUSE_LEFT);
-                            currentClickStatus = 1;
-                        }
-                        else if (strain.clickStatus == 2)
-                        {
-                            char buf[100];
-                            snprintf(buf, sizeof(buf), "Right Clicked: Force%f", strain.force);
-                            log(buf);
-                            bleMouse.press(MOUSE_RIGHT);
-                            currentClickStatus = 2;
-                        }
-                        motor_task_.playHaptic(true);
-                        pressed = true;
-                        press_count_++;
-                    }
-                }
-                else if (pressed && strain.force < 0.85f)
-                {
-                    press_readings++;
-                    if (press_readings > 2)
-                    {
-                        char buf[100];
-                        snprintf(buf, sizeof(buf), "Releasing %s", currentClickStatus == 1 ? "Left Click" : "Right Click");
-                        log(buf);
-                        if (currentClickStatus == 1)
-                        {
-                            bleMouse.release(MOUSE_LEFT);
-                        }
-                        else if (currentClickStatus == 2)
-                        {
-                            bleMouse.release(MOUSE_RIGHT);
-                        }
-                        motor_task_.playHaptic(false);
-                        pressed = false;
-                        currentClickStatus = 0;
-                    }
+                    press_readings = 0;
                 }
                 else
                 {
-                    press_readings = 0;
+                    if (!pressed && strain.force > 0.9f)
+                    {
+                        press_readings++;
+                        if (press_readings > 2)
+                        {
+                            if (strain.clickStatus == 1)
+                            {
+                                char buf[100];
+                                snprintf(buf, sizeof(buf), "Left Clicked: Force%f", strain.force);
+                                log(buf);
+                                bleMouse.press(MOUSE_LEFT);
+                                currentClickStatus = 1;
+                            }
+                            else if (strain.clickStatus == 2)
+                            {
+                                char buf[100];
+                                snprintf(buf, sizeof(buf), "Right Clicked: Force%f", strain.force);
+                                log(buf);
+                                bleMouse.press(MOUSE_RIGHT);
+                                currentClickStatus = 2;
+                            }
+                            motor_task_.playHaptic(true);
+                            pressed = true;
+                            press_count_++;
+                        }
+                    }
+                    else if (pressed && strain.force < 0.85f)
+                    {
+                        press_readings++;
+                        if (press_readings > 2)
+                        {
+                            char buf[100];
+                            snprintf(buf, sizeof(buf), "Releasing %s", currentClickStatus == 1 ? "Left Click" : "Right Click");
+                            log(buf);
+                            if (currentClickStatus == 1)
+                            {
+                                bleMouse.release(MOUSE_LEFT);
+                            }
+                            else if (currentClickStatus == 2)
+                            {
+                                bleMouse.release(MOUSE_RIGHT);
+                            }
+                            motor_task_.playHaptic(false);
+                            pressed = false;
+                            currentClickStatus = 0;
+                        }
+                    }
+                    else
+                    {
+                        press_readings = 0;
+                    }
                 }
             }
         }

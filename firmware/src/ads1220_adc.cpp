@@ -8,6 +8,10 @@
 bool ADS1220Controller::init()
 {
     initialized_ = false;
+    has_valid_sample_ = false;
+    last_raw_ = {0.0f, 0.0f, 0.0f, 0.0f};
+    last_data_ = {};
+    current_mux_ = ADS1220_MUX_0_1;
 
     // SPI.begin(PIN_PMW3389_SCK, PIN_PMW3389_MISO, PIN_PMW3389_MOSI);
     SPI.setDataMode(SPI_MODE1); // ADS1220 wants Mode 1
@@ -43,6 +47,9 @@ bool ADS1220Controller::init()
     // ads1.setOperatingMode(ADS1220_TURBO_MODE);
     // ads1.setConversionMode(ADS1220_CONTINUOUS);
     // ads1.setDataRate(ADS1220_DR_LVL_3); // 45 SPS; adjust as needed
+
+    // Prime the MUX so the first conversion is on the expected channel.
+    ads0.setCompareChannels(current_mux_);
 
     initialized_ = true;
 
@@ -98,17 +105,34 @@ void ADS1220Controller::calibrateZero()
     SPI.setDataMode(SPI_MODE1);
 
     strainOffset_ = {0.0, 0.0, 0.0, 0.0};
-    StrainRaw strainOffset;
+    StrainRaw strainOffset = {0.0f, 0.0f, 0.0f, 0.0f};
+    size_t samples = 0;
 
-    for (int iter = 0; iter < 500; iter++)
+    // Collect actual ADC samples without blocking other tasks.
+    while (samples < 500)
     {
-        strainOffset += readStrainGauge(true);
+        StrainRaw sample;
+        if (readStrainGauge(sample, false))
+        {
+            strainOffset += sample;
+            samples++;
+        }
         vTaskDelay(pdMS_TO_TICKS(1));
     }
 
-    strainOffset /= 500.0f;
+    if (samples == 0)
+    {
+        if (logger_)
+        {
+            log("ADS: calibrateZero failed (no samples)");
+        }
+        return;
+    }
+
+    strainOffset /= static_cast<float>(samples);
 
     strainOffset_ = strainOffset;
+    last_raw_ = strainOffset;
 
     char buf[100];
     snprintf(buf, sizeof(buf), "STRAIN_OFFSET_A:%f STRAIN_OFFSET_B:%f STRAIN_OFFSET_C:%f STRAIN_OFFSET_D:%f", strainOffset_.A, strainOffset_.B, strainOffset_.C, strainOffset_.D);
@@ -140,72 +164,82 @@ void ADS1220Controller::calibrateZero()
     }
 }
 
-StrainRaw ADS1220Controller::readStrainGauge(bool print)
+bool ADS1220Controller::readStrainGauge(StrainRaw &result, bool print)
 {
     if (!initialized_)
     {
-        return StrainRaw{0, 0, 0, 0};
+        result = StrainRaw{0, 0, 0, 0};
+        return false;
+    }
+
+    // If data isn't ready yet, don't block this task; just return the last value.
+    if (digitalRead(PIN_ADS1220_DRDY0) == HIGH)
+    {
+        result = last_raw_;
+        result -= strainOffset_;
+        return false;
     }
 
     SPI.setDataMode(SPI_MODE1);
 
-    ads0.setCompareChannels(ADS1220_MUX_0_1);
-    float mV1 = ads0.getRawData() * (2.048f / 8388608.0f / 128.0f * 1000.0f);
-    ads0.setCompareChannels(ADS1220_MUX_2_3);
-    float mV2 = ads0.getRawData() * (2.048f / 8388608.0f / 128.0f * 1000.0f);
+    const float scale = (2.048f / 8388608.0f / 128.0f * 1000.0f);
+    const float mV = ads0.getRawData() * scale;
 
-    float StrainA = 0;
-    float StrainB = 0;
-    float StrainC = 0;
-    float StrainD = 0;
-    if (!(mV1 == 0 || mV2 == 0))
+    switch (current_mux_)
     {
-        StrainB = mV1;
-        StrainA = mV2;
+    case ADS1220_MUX_0_1:
+        last_raw_.B = mV;
+        break;
+    case ADS1220_MUX_2_3:
+        last_raw_.A = mV;
+        break;
+    default:
+        break;
     }
 
-    // ads1.setCompareChannels(ADS1220_MUX_0_1);
-    // mV1 = ads1.getRawData() * (2.048f / 8388608.0f / 128.0f * 1000.0f);
-    // ads1.setCompareChannels(ADS1220_MUX_2_3);
-    // mV2 = ads1.getRawData() * (2.048f / 8388608.0f / 128.0f * 1000.0f);
+    // Set up the next channel and let the conversion happen in the background.
+    current_mux_ = (current_mux_ == ADS1220_MUX_0_1) ? ADS1220_MUX_2_3 : ADS1220_MUX_0_1;
+    ads0.setCompareChannels(current_mux_);
 
-    // if (!(mV1 == 0 || mV2 == 0))
-    // {
-    //     StrainD = mV1;
-    //     StrainC = mV2;
-    // }
+    has_valid_sample_ = true;
 
-    StrainC = 0;
-    StrainD = 0;
-
-    StrainRaw result = StrainRaw{StrainA, StrainB, StrainC, StrainD};
-
+    result = last_raw_;
     result -= strainOffset_;
 
     if (print)
     {
         char bufAB[100];
         snprintf(bufAB, sizeof(bufAB), "STRAIN_A:%f STRAIN_B:%f", result.A, result.B);
-        // char bufCD[100];
-        // snprintf(bufCD, sizeof(bufCD), "STRAIN_C:%f STRAIN_D:%f", result.C, result.D);
-
-        // char buf[100];
-        // snprintf(buf, sizeof(buf), "%s %s", bufAB, bufCD);
         log(bufAB);
     }
 
-    return result;
+    return true;
 }
 
-StrainData ADS1220Controller::read(bool print)
+bool ADS1220Controller::read(StrainData &data, bool print)
 {
     if (!initialized_)
     {
-        return StrainData{};
+        data = StrainData{};
+        return false;
     }
 
-    StrainRaw strain = readStrainGauge(false);
-    StrainData data{};
+    StrainRaw strain{};
+    const bool new_sample = readStrainGauge(strain, print);
+
+    if (!has_valid_sample_)
+    {
+        data = StrainData{};
+        return false;
+    }
+
+    // If no new sample was consumed, reuse the previous reading.
+    if (!new_sample)
+    {
+        data = last_data_;
+        data.clickStatus = restingFinger;
+        return false;
+    }
 
     data.x = (strain.A - strain.B);
     // data.y = (strain.A - strain.C);
@@ -213,33 +247,19 @@ StrainData ADS1220Controller::read(bool print)
     //  y = rotation_sin * (StrainD - StrainB) + rotation_cos * y;
     data.force = sqrt(pow(strain.A, 2) + pow(strain.B, 2) + pow(strain.C, 2) + pow(strain.D, 2));
 
-    if (data.force < .2)
+    if (data.force < .2f)
     {
         restingFinger = 0;
-        if (print)
-        {
-            char buf[100];
-            snprintf(buf, sizeof(buf), "X:%f Y:%f Force:%f ClickStatus:%d", data.x, data.y, data.force, data.clickStatus);
-            log(buf);
-        }
     }
     else if (restingFinger != 1)
     {
-        if (data.x < 0.1)
-            restingFinger = 1;
-        else
-            restingFinger = 2;
-        if (print)
-        {
-            char buf[100];
-            snprintf(buf, sizeof(buf), "X:%f Y:%f Force:%f ClickStatus:%d", data.x, data.y, data.force, data.clickStatus);
-            log(buf);
-        }
+        restingFinger = (data.x < 0) ? 1 : 2;
     }
 
     data.clickStatus = restingFinger;
+    last_data_ = data;
 
-    return data;
+    return true;
 }
 
 void ADS1220Controller::log(const char *msg)
